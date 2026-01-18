@@ -123,14 +123,17 @@ This document tracks the implementation of a production-leaning subscription dun
 - **Notes:** Maps attempt numbers to escalation levels (1→0, 2→1, 3+→2). Uses stepId as idempotency key to prevent duplicate emails.
 
 ### 3.3 Implement restrictCustomerAccess Step (`lib/dunning/steps/restrict-access.ts`)
-- [ ] Use `"use step"` directive
-- [ ] Mark customer as access-restricted via subscription service
-- [ ] Use `stepId` as idempotency key
-- [ ] Must be idempotent (safe to call multiple times)
-- [ ] Add test for successful restriction
-- [ ] Add test for idempotency
-- **Status:** Not started
+- [x] Use `"use step"` directive
+- [x] Mark customer as access-restricted via subscription service
+- [x] Use `stepId` as idempotency key
+- [x] Must be idempotent (safe to call multiple times)
+- [x] Add test for successful restriction (3 tests)
+- [x] Add test for idempotency (2 tests)
+- [x] Add test for already-restricted handling (1 test)
+- [x] Add test for optional subscriptionId (2 tests)
+- **Status:** Complete (8 tests)
 - **Spec:** `specs/step-functions.md`
+- **Notes:** Uses stepId as idempotency key. Handles both 'already_executed' (same stepId) and 'already_in_state' (customer already restricted) cases.
 
 ### 3.4 Implement executeFinalAction Step (`lib/dunning/steps/execute-final-action.ts`)
 - [ ] Use `"use step"` directive
@@ -269,9 +272,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3.1-3.2 (checkInvoiceStatus, sendDunningEmail Steps) - 110 tests passing
-**In Progress:** Phase 3 (Step Functions) - 3.1-3.2 complete, 3.3-3.4 remaining
-**Remaining:** Phases 3.3-3.4, 4, 5, 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3.1-3.3 (checkInvoiceStatus, sendDunningEmail, restrictCustomerAccess Steps) - 118 tests passing
+**In Progress:** Phase 3 (Step Functions) - 3.1-3.3 complete, 3.4 remaining
+**Remaining:** Phases 3.4, 4, 5, 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
