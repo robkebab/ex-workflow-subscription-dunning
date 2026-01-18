@@ -163,36 +163,38 @@ This document tracks the implementation of a production-leaning subscription dun
 - **Notes:** Includes `parseDuration()` and `formatDuration()` functions. Handles whitespace, case insensitivity, and comprehensive error handling with `DurationParseError`.
 
 ### 4.2 Implement Main Dunning Workflow (`lib/dunning/workflow.ts`)
-- [ ] Use `"use workflow"` directive at function start
-- [ ] Accept `DunningWorkflowInput` as parameter
-- [ ] Merge input config with defaults
-- [ ] Create webhook with deterministic token: `dunning:${invoiceId}`
-- [ ] Send initial dunning email with webhook URL
-- [ ] Implement retry loop for each attempt up to `maxAttempts`:
-  - [ ] `Promise.race([webhook, sleep(delay)])` - race customer action vs timeout
-  - [ ] After race resolves, call `checkInvoiceStatus` step
-  - [ ] If paid: return `{ outcome: 'recovered', invoiceId, attemptsUsed }`
-  - [ ] If not paid and at `restrictAccessAfterAttempt`: call `restrictCustomerAccess`
-  - [ ] If not paid and more attempts remain: send escalating email
-- [ ] When all attempts exhausted:
-  - [ ] Call `executeFinalAction` step
-  - [ ] Return `{ outcome: 'exhausted', invoiceId, attemptsUsed, finalAction }`
-- **Status:** Not started
+- [x] Use `"use workflow"` directive at function start
+- [x] Accept `DunningWorkflowInput` as parameter
+- [x] Merge input config with defaults
+- [x] Create webhook with deterministic token: `dunning:${invoiceId}`
+- [x] Send initial dunning email with webhook URL
+- [x] Implement retry loop for each attempt up to `maxAttempts`:
+  - [x] `Promise.race([webhook, sleep(delay)])` - race customer action vs timeout
+  - [x] After race resolves, call `checkInvoiceStatus` step
+  - [x] If paid: return `{ outcome: 'recovered', invoiceId, attemptsUsed }`
+  - [x] If not paid and at `restrictAccessAfterAttempt`: call `restrictCustomerAccess`
+  - [x] If not paid and more attempts remain: send escalating email
+- [x] When all attempts exhausted:
+  - [x] Call `executeFinalAction` step
+  - [x] Return `{ outcome: 'exhausted', invoiceId, attemptsUsed, finalAction }`
+- **Status:** Complete (19 tests)
 - **Spec:** `specs/core-workflow.md`
+- **Notes:** Uses `parseDuration()` to convert retry schedule strings to milliseconds for the workflow `sleep()` function. The webhook token is deterministic (`dunning:${invoiceId}`) for idempotent restarts. Customer email is derived from customerId for mock testing.
 
 ### 4.3 Core Workflow Tests
-- [ ] Test workflow uses `"use workflow"` directive
-- [ ] Test webhook created with deterministic token
-- [ ] Test Promise.race correctly races webhook vs sleep
-- [ ] Test invoice status checked after each wait
-- [ ] Test returns `recovered` when invoice paid mid-dunning
-- [ ] Test returns `exhausted` with final action after all attempts
-- [ ] Test access restriction triggers at correct attempt
-- [ ] Test full happy path (recovery on first attempt)
-- [ ] Test full recovery path (recovery on attempt 2)
-- [ ] Test exhaustion path (all attempts fail)
-- **Status:** Not started
+- [x] Test workflow uses `"use workflow"` directive
+- [x] Test webhook created with deterministic token
+- [x] Test Promise.race correctly races webhook vs sleep
+- [x] Test invoice status checked after each wait
+- [x] Test returns `recovered` when invoice paid mid-dunning
+- [x] Test returns `exhausted` with final action after all attempts
+- [x] Test access restriction triggers at correct attempt
+- [x] Test full happy path (recovery on first attempt)
+- [x] Test full recovery path (recovery on attempt 2)
+- [x] Test exhaustion path (all attempts fail)
+- **Status:** Complete (19 tests)
 - **Spec:** `specs/core-workflow.md`
+- **Notes:** Tests mock the workflow package (createWebhook, sleep, getStepMetadata) to control timing. Mock providers configured with no random failures for deterministic tests.
 
 ---
 
@@ -275,9 +277,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4.1 (Duration Parser) - 176 tests passing
-**In Progress:** Phase 4 (Core Workflow)
-**Remaining:** Phases 4.2-4.3, 5, 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow) - 195 tests passing
+**In Progress:** Phase 5 (API Endpoints)
+**Remaining:** Phases 5, 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
