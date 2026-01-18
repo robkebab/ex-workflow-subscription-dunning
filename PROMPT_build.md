@@ -1,6 +1,7 @@
 0a. Study `specs/*` to learn the application specifications.
 0b. Study @IMPLEMENTATION_PLAN.md.
-0c. For reference, the application source code is in `app/*`.
+0c. Study @AGENTS.md for development rules
+0d. For reference, the application source code is in `app/*`.
 
 1. Your task is to implement functionality per the specifications. Follow @IMPLEMENTATION_PLAN.md and choose ONLY 1 most important item to address. Before making changes, search the codebase (don't assume not implemented).
 2. After implementing functionality or resolving problems, run the tests for that unit of code that was improved. If functionality is missing then it's your job to add it as per the application specifications.
