@@ -257,12 +257,13 @@ This document tracks the implementation of a production-leaning subscription dun
 - **Notes:** Returns 404 if invoice doesn't exist. Returns success with message 'Invoice was already paid' for idempotent repeated calls. Supports all invoice statuses (open, past_due, uncollectible).
 
 ### 5.5 Implement State Dump Endpoint (`app/api/test/state/route.ts`)
-- [ ] Handle GET requests
-- [ ] Return full mock store state as JSON
-- [ ] Include all invoices, email logs, subscription states
-- [ ] Add test for state inspection
-- **Status:** Not started
+- [x] Handle GET requests
+- [x] Return full mock store state as JSON
+- [x] Include all invoices, email logs, subscription states
+- [x] Add test for state inspection (10 tests)
+- **Status:** Complete (10 tests)
 - **Spec:** `specs/test-api.md`
+- **Notes:** Returns invoices, workflowRuns, emailLogs, subscriptionOperations, processedEventIds, restrictedCustomers, pausedSubscriptions, canceledSubscriptions. Includes _summary object with counts for quick inspection.
 
 ---
 
@@ -287,9 +288,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5.1-5.4 (Stripe Webhook, Dunning Start, Dunning Status, Pay Invoice) - 250 tests passing
-**In Progress:** Phase 5 (API Endpoints) - 5.1, 5.2, 5.3, 5.4 Complete
-**Remaining:** Phase 5.5, Phase 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5 (API Endpoints) - 260 tests passing
+**In Progress:** None
+**Remaining:** Phase 6 (Integration & End-to-End Tests, Documentation)
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
