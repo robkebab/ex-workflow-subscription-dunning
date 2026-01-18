@@ -93,16 +93,18 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Phase 3: Step Functions
 
 ### 3.1 Implement checkInvoiceStatus Step (`lib/dunning/steps/check-invoice-status.ts`)
-- [ ] Use `"use step"` directive
-- [ ] Fetch invoice state from mock Stripe provider
-- [ ] Throw `FatalError` for 404 (invoice not found)
-- [ ] Throw `RetryableError` for transient failures (5xx, network)
-- [ ] Return `InvoiceState`
-- [ ] Add test for success path
-- [ ] Add test for 404 FatalError
-- [ ] Add test for retry behavior on transient failure
-- **Status:** Not started
+- [x] Use `"use step"` directive
+- [x] Fetch invoice state from mock Stripe provider
+- [x] Throw `FatalError` for 404 (invoice not found)
+- [x] Throw `RetryableError` for transient failures (5xx, network, rate limits)
+- [x] Return `InvoiceState`
+- [x] Add test for success path (2 tests)
+- [x] Add test for 404 FatalError (2 tests)
+- [x] Add test for retry behavior on transient failure (4 tests)
+- [x] Add edge case test for nextPaymentAttempt field
+- **Status:** Complete (9 tests)
 - **Spec:** `specs/step-functions.md`
+- **Notes:** Uses `getStepMetadata()` for logging stepId and attempt number. Handles InvoiceNotFoundError, RateLimitError, and TransientError from mock Stripe provider.
 
 ### 3.2 Implement sendDunningEmail Step (`lib/dunning/steps/send-dunning-email.ts`)
 - [ ] Use `"use step"` directive
@@ -264,9 +266,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure) - 89 tests passing
-**In Progress:** Phase 3 (Step Functions)
-**Remaining:** Phases 3-6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3.1 (checkInvoiceStatus Step) - 98 tests passing
+**In Progress:** Phase 3 (Step Functions) - 3.1 complete, 3.2-3.4 remaining
+**Remaining:** Phases 3.2-3.4, 4, 5, 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
