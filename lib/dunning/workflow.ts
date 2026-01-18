@@ -24,7 +24,6 @@ import { checkInvoiceStatus } from './steps/check-invoice-status';
 import { sendDunningEmail } from './steps/send-dunning-email';
 import { restrictCustomerAccess } from './steps/restrict-access';
 import { executeFinalAction } from './steps/execute-final-action';
-import { dunningStore } from './store';
 import { parseDuration } from './utils/duration';
 
 /**
@@ -76,12 +75,10 @@ export async function dunningWorkflow(input: DunningWorkflowInput): Promise<Dunn
 
   console.log(`[dunningWorkflow] Created webhook with token=${webhookToken} url=${webhook.url}`);
 
-  // Ensure invoice exists in store (for mock testing)
-  // In production, the invoice would already exist in Stripe
-  const storedInvoice = dunningStore.getInvoice(invoiceId);
-  if (!storedInvoice) {
-    dunningStore.createInvoice(invoiceId, customerId, subscriptionId);
-  }
+  // NOTE: Invoice must exist before workflow starts.
+  // In production, the invoice exists in Stripe. For testing, the API route or test
+  // setup must create the invoice before triggering the workflow.
+  // Direct store access here would violate workflow determinism (breaks replay).
 
   // Get customer email (in production, this would come from customer data)
   // For mock purposes, we use a deterministic email based on customer ID

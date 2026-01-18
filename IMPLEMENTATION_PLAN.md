@@ -27,14 +27,7 @@ Workflow functions must be deterministic. All I/O operations must go through ste
 
 ### Issues
 
-- [ ] **`lib/dunning/workflow.ts:80-83`** - Direct store access in workflow:
-  ```typescript
-  const storedInvoice = dunningStore.getInvoice(invoiceId);
-  if (!storedInvoice) {
-    dunningStore.createInvoice(invoiceId, customerId, subscriptionId);
-  }
-  ```
-  **Fix**: Move this to a step function (e.g., `ensureInvoiceExists`) or remove if not needed (the invoice should exist before dunning starts).
+- [x] **`lib/dunning/workflow.ts`** - ~~Direct store access in workflow~~ Removed `dunningStore.getInvoice()` and `dunningStore.createInvoice()` calls from workflow function. Invoice must exist before workflow starts (created by API route or test setup). ✓
 
 ---
 
@@ -96,16 +89,16 @@ checkInvoiceStatus.maxRetries = 5;
 | Priority | Category | Count |
 |----------|----------|-------|
 | CRITICAL | Directive Placement | ✅ Complete |
-| CRITICAL | Determinism | 1 |
+| CRITICAL | Determinism | ✅ Complete |
 | HIGH | Workflow Triggering | 4 |
 | MEDIUM | Step Configuration | 5 |
-| **Total** | | **10** |
+| **Total** | | **9** |
 
 ---
 
 ## Recommended Fix Order
 
-1. Fix directive placement in all files (CRITICAL - nothing works without this)
-2. Fix determinism violation in workflow.ts (CRITICAL - breaks replay)
+1. ~~Fix directive placement in all files~~ ✅ Complete
+2. ~~Fix determinism violation in workflow.ts~~ ✅ Complete
 3. Update API routes to use `start()` (HIGH - enables proper runtime)
 4. Add `maxRetries` and exponential backoff (MEDIUM - improves reliability)
