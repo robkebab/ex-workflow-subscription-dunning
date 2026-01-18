@@ -1,311 +1,111 @@
-# Subscription Dunning Workflow - Implementation Plan
+# Implementation Plan: Workflow Pattern Fixes
 
-This document tracks the implementation of a production-leaning subscription dunning workflow using Workflow DevKit. Items are sorted by priority and dependency order.
-
----
-
-## Phase 1: Foundation (Dependencies & Types)
-
-### 1.1 Install Workflow DevKit
-- [x] Add `workflow` package to dependencies (Vercel's Workflow DevKit at useworkflow.dev)
-- [x] Configure `next.config.ts` with `withWorkflow()` wrapper
-- [x] Verify build succeeds with workflow routes
-- **Status:** Complete
-- **Notes:** The package is `workflow` (not `@anthropic-ai/workflow-devkit`). It adds `/.well-known/workflow/v1/*` routes.
-
-### 1.2 Install Test Framework
-- [x] Add Vitest to devDependencies
-- [x] Configure vitest.config.ts with path aliases
-- [x] Add test scripts to package.json (test, test:watch, test:coverage)
-- **Status:** Complete
-
-### 1.3 Implement Types & Configuration (`lib/dunning/types.ts`)
-- [x] Define `DunningWorkflowInput` interface
-- [x] Define `DunningConfig` interface with optional fields
-- [x] Define `InvoiceState` interface
-- [x] Define `DunningResult` interface
-- [x] Export `DEFAULT_RETRY_SCHEDULE` constant: `["1d", "3d", "7d"]`
-- [x] Export `DEFAULT_MAX_ATTEMPTS` constant: `3`
-- [x] Export `DEFAULT_FINAL_ACTION` constant: `'pause'`
-- [x] Export `DEFAULT_RESTRICT_ACCESS_AFTER_ATTEMPT` constant: `2`
-- [x] Define `EmailEscalationLevel` type (levels 0, 1, 2)
-- [x] Create test to verify all types and constants are importable (13 tests passing)
-- **Status:** Complete
-- **Spec:** `specs/types-configuration.md`
+This document tracks issues with the current dunning workflow implementation that violate Vercel Workflow DevKit patterns. Issues are sorted by priority.
 
 ---
 
-## Phase 2: Mock Infrastructure
+## CRITICAL: Directive Placement (Compiler Requirement)
 
-### 2.1 Implement In-Memory Dunning Store (`lib/dunning/store.ts`)
-- [x] Create `DunningStore` class with invoice state tracking
-- [x] Implement `getInvoice(invoiceId)` method
-- [x] Implement `setInvoiceStatus(invoiceId, status)` method
-- [x] Implement `markInvoicePaid(invoiceId)` method for test manipulation
-- [x] Implement `reset()` method for test isolation
-- [x] Track workflow runs and their states
-- [x] Support concurrent access patterns
-- [x] Add logging for observability
-- **Status:** Complete (43 tests)
-- **Spec:** `specs/mock-providers.md`
+All `"use workflow"` and `"use step"` directives are incorrectly placed at file level instead of inside function bodies. This prevents the compiler from transforming the functions for durable execution.
 
-### 2.2 Implement Mock Stripe Provider (`lib/dunning/providers/stripe.ts`)
-- [x] Implement `getInvoice(invoiceId)` returning `InvoiceState`
-- [x] Implement `checkInvoiceStatus(invoiceId)` returning status
-- [x] Support `next_payment_attempt` hint for testing
-- [x] Simulate occasional 429 rate limit responses (configurable)
-- [x] Simulate configurable latency (50-200ms)
-- [x] Log all operations for debugging
-- **Status:** Complete (19 tests)
-- **Spec:** `specs/mock-providers.md`
+Per the Workflow DevKit documentation:
+> Directives must be placed as the first statement inside the function body, not at the file level.
 
-### 2.3 Implement Mock Email Service (`lib/dunning/providers/email.ts`)
-- [x] Implement `sendEmail(options)` with idempotency key support
-- [x] Accept escalation level, webhook URL, and customer details
-- [x] Log all sent emails with timestamp and content summary
-- [x] Track calls by idempotency key to prevent duplicates
-- [x] Simulate occasional transient failures (retry-able)
-- **Status:** Complete (14 tests)
-- **Spec:** `specs/mock-providers.md`
+### Issues
 
-### 2.4 Implement Mock Subscription Service (`lib/dunning/providers/subscription.ts`)
-- [x] Implement `pauseSubscription(subscriptionId)` - idempotent
-- [x] Implement `cancelSubscription(subscriptionId)` - idempotent
-- [x] Implement `restrictAccess(customerId)` - idempotent
-- [x] Implement `markUnpaid(invoiceId)` - idempotent (added for mark_unpaid action)
-- [x] Track operations by idempotency key
-- [x] Log all operations
-- **Status:** Complete (13 tests)
-- **Spec:** `specs/mock-providers.md`
-
-### 2.5 Mock Provider Tests
-- [x] Test mock Stripe returns invoice state correctly
-- [x] Test mock Stripe 429 simulation
-- [x] Test mock email logs and respects idempotency
-- [x] Test subscription operations are idempotent
-- [x] Test store allows external state manipulation
-- [x] Test retry behavior on transient failures
-- **Status:** Complete (89 tests total across all mock providers)
-- **Spec:** `specs/mock-providers.md`
+- [ ] **`lib/dunning/workflow.ts:14`** - `"use workflow"` at file level, must move inside `dunningWorkflow()` function body
+- [ ] **`lib/dunning/steps/check-invoice-status.ts:8`** - `"use step"` at file level, must move inside `checkInvoiceStatus()` function body
+- [ ] **`lib/dunning/steps/send-dunning-email.ts:8`** - `"use step"` at file level, must move inside `sendDunningEmail()` function body
+- [ ] **`lib/dunning/steps/restrict-access.ts:8`** - `"use step"` at file level, must move inside `restrictCustomerAccess()` function body
+- [ ] **`lib/dunning/steps/execute-final-action.ts:13`** - `"use step"` at file level, must move inside `executeFinalAction()` function body
 
 ---
 
-## Phase 3: Step Functions
+## CRITICAL: Determinism Violation (Breaks Replay)
 
-### 3.1 Implement checkInvoiceStatus Step (`lib/dunning/steps/check-invoice-status.ts`)
-- [x] Use `"use step"` directive
-- [x] Fetch invoice state from mock Stripe provider
-- [x] Throw `FatalError` for 404 (invoice not found)
-- [x] Throw `RetryableError` for transient failures (5xx, network, rate limits)
-- [x] Return `InvoiceState`
-- [x] Add test for success path (2 tests)
-- [x] Add test for 404 FatalError (2 tests)
-- [x] Add test for retry behavior on transient failure (4 tests)
-- [x] Add edge case test for nextPaymentAttempt field
-- **Status:** Complete (9 tests)
-- **Spec:** `specs/step-functions.md`
-- **Notes:** Uses `getStepMetadata()` for logging stepId and attempt number. Handles InvoiceNotFoundError, RateLimitError, and TransientError from mock Stripe provider.
+Workflow functions must be deterministic. All I/O operations must go through step functions, not be called directly in workflow context.
 
-### 3.2 Implement sendDunningEmail Step (`lib/dunning/steps/send-dunning-email.ts`)
-- [x] Use `"use step"` directive
-- [x] Accept attempt number to determine escalation level
-- [x] Include webhook URL as "fix payment" link
-- [x] Use `stepId` from `getStepMetadata()` as idempotency key
-- [x] Throw `RetryableError` for transient failures with delay hint
-- [x] Throw `FatalError` for non-recoverable failures
-- [x] Add test for successful send (2 tests)
-- [x] Add test for escalation levels (4 tests)
-- [x] Add test for idempotency (2 tests)
-- [x] Add test for retry on transient failure (3 tests)
-- [x] Add test for webhook URL inclusion (1 test)
-- **Status:** Complete (12 tests)
-- **Spec:** `specs/step-functions.md`
-- **Notes:** Maps attempt numbers to escalation levels (1→0, 2→1, 3+→2). Uses stepId as idempotency key to prevent duplicate emails.
+### Issues
 
-### 3.3 Implement restrictCustomerAccess Step (`lib/dunning/steps/restrict-access.ts`)
-- [x] Use `"use step"` directive
-- [x] Mark customer as access-restricted via subscription service
-- [x] Use `stepId` as idempotency key
-- [x] Must be idempotent (safe to call multiple times)
-- [x] Add test for successful restriction (3 tests)
-- [x] Add test for idempotency (2 tests)
-- [x] Add test for already-restricted handling (1 test)
-- [x] Add test for optional subscriptionId (2 tests)
-- **Status:** Complete (8 tests)
-- **Spec:** `specs/step-functions.md`
-- **Notes:** Uses stepId as idempotency key. Handles both 'already_executed' (same stepId) and 'already_in_state' (customer already restricted) cases.
-
-### 3.4 Implement executeFinalAction Step (`lib/dunning/steps/execute-final-action.ts`)
-- [x] Use `"use step"` directive
-- [x] Accept `finalAction` config (`'pause'` | `'cancel'` | `'mark_unpaid'`)
-- [x] Execute configured action via subscription service
-- [x] Use `stepId` as idempotency key
-- [x] Must be idempotent
-- [x] Add test for pause action (4 tests)
-- [x] Add test for cancel action (4 tests)
-- [x] Add test for mark_unpaid action (4 tests)
-- [x] Add test for idempotency (4 tests)
-- **Status:** Complete (16 tests)
-- **Spec:** `specs/step-functions.md`
-- **Notes:** Uses stepId as idempotency key. Handles all three actions via subscription service. Returns executed=false with reason when idempotent no-op occurs.
+- [ ] **`lib/dunning/workflow.ts:80-83`** - Direct store access in workflow:
+  ```typescript
+  const storedInvoice = dunningStore.getInvoice(invoiceId);
+  if (!storedInvoice) {
+    dunningStore.createInvoice(invoiceId, customerId, subscriptionId);
+  }
+  ```
+  **Fix**: Move this to a step function (e.g., `ensureInvoiceExists`) or remove if not needed (the invoice should exist before dunning starts).
 
 ---
 
-## Phase 4: Core Workflow
+## HIGH: Incorrect Workflow Triggering
 
-### 4.1 Implement Duration Parser Utility (`lib/dunning/utils/duration.ts`)
-- [x] Parse delay strings like "1d", "3d", "7d" to milliseconds
-- [x] Support days (d), hours (h), minutes (m), seconds (s)
-- [x] Add test for all supported formats (42 tests)
-- [x] Add `formatDuration()` utility for inverse operation
-- **Status:** Complete
-- **Spec:** Implied by `specs/types-configuration.md` (retrySchedule uses delay strings)
-- **Notes:** Includes `parseDuration()` and `formatDuration()` functions. Handles whitespace, case insensitivity, and comprehensive error handling with `DurationParseError`.
+API routes call the workflow function directly instead of using `start()` from `workflow/api`. This bypasses the workflow runtime, losing durability, observability, and proper Run management.
 
-### 4.2 Implement Main Dunning Workflow (`lib/dunning/workflow.ts`)
-- [x] Use `"use workflow"` directive at function start
-- [x] Accept `DunningWorkflowInput` as parameter
-- [x] Merge input config with defaults
-- [x] Create webhook with deterministic token: `dunning:${invoiceId}`
-- [x] Send initial dunning email with webhook URL
-- [x] Implement retry loop for each attempt up to `maxAttempts`:
-  - [x] `Promise.race([webhook, sleep(delay)])` - race customer action vs timeout
-  - [x] After race resolves, call `checkInvoiceStatus` step
-  - [x] If paid: return `{ outcome: 'recovered', invoiceId, attemptsUsed }`
-  - [x] If not paid and at `restrictAccessAfterAttempt`: call `restrictCustomerAccess`
-  - [x] If not paid and more attempts remain: send escalating email
-- [x] When all attempts exhausted:
-  - [x] Call `executeFinalAction` step
-  - [x] Return `{ outcome: 'exhausted', invoiceId, attemptsUsed, finalAction }`
-- **Status:** Complete (19 tests)
-- **Spec:** `specs/core-workflow.md`
-- **Notes:** Uses `parseDuration()` to convert retry schedule strings to milliseconds for the workflow `sleep()` function. The webhook token is deterministic (`dunning:${invoiceId}`) for idempotent restarts. Customer email is derived from customerId for mock testing.
+### Issues
 
-### 4.3 Core Workflow Tests
-- [x] Test workflow uses `"use workflow"` directive
-- [x] Test webhook created with deterministic token
-- [x] Test Promise.race correctly races webhook vs sleep
-- [x] Test invoice status checked after each wait
-- [x] Test returns `recovered` when invoice paid mid-dunning
-- [x] Test returns `exhausted` with final action after all attempts
-- [x] Test access restriction triggers at correct attempt
-- [x] Test full happy path (recovery on first attempt)
-- [x] Test full recovery path (recovery on attempt 2)
-- [x] Test exhaustion path (all attempts fail)
-- **Status:** Complete (19 tests)
-- **Spec:** `specs/core-workflow.md`
-- **Notes:** Tests mock the workflow package (createWebhook, sleep, getStepMetadata) to control timing. Mock providers configured with no random failures for deterministic tests.
+- [ ] **`app/api/dunning/start/route.ts:132`** - Calls `dunningWorkflow(workflowInput)` directly
+  **Fix**: Use `start()` from `workflow/api`:
+  ```typescript
+  import { start } from "workflow/api";
+  const run = await start(dunningWorkflow, [workflowInput]);
+  ```
+
+- [ ] **`app/api/webhooks/stripe/route.ts:141`** - Calls `dunningWorkflow(workflowInput)` directly
+  **Fix**: Same as above - use `start()` from `workflow/api`
+
+- [ ] **Manual runId generation** - Both routes generate their own runIds instead of using `run.runId` from the Run object returned by `start()`
+
+- [ ] **Manual state tracking** - Both routes manually update `dunningStore` for workflow state when the Run object already provides `status`, `returnValue`, etc.
 
 ---
 
-## Phase 5: API Endpoints
+## MEDIUM: Missing Step Configuration
 
-### 5.1 Implement Stripe Webhook Endpoint (`app/api/webhooks/stripe/route.ts`)
-- [x] Handle POST requests
-- [x] Parse `invoice.payment_failed` event from request body
-- [x] Extract `data.object.id`, `data.object.customer`, `data.object.subscription`
-- [x] Validate payload structure (return 400 on malformed)
-- [x] Start dunning workflow with extracted data (asynchronously)
-- [x] Implement idempotency: same event ID should not start duplicate workflows
-- [x] Return 200 quickly after starting workflow
-- [x] Log received events for observability
-- [x] Add comment noting webhook signature verification skipped for demo
-- [x] Add test for successful event processing (4 tests)
-- [x] Add test for 400 on malformed payload (8 tests)
-- [x] Add test for idempotency (2 tests)
-- **Status:** Complete (16 tests)
-- **Spec:** `specs/webhook-api.md`
-- **Notes:** Uses `dunningStore.hasProcessedEvent()` and `markEventProcessed()` for idempotency. Handles null subscription IDs for one-off invoices. Other event types are acknowledged but not processed.
+Step functions should configure `maxRetries` for critical operations and use exponential backoff.
 
-### 5.2 Implement Dunning Start Endpoint (`app/api/dunning/start/route.ts`)
-- [x] Handle POST requests
-- [x] Accept `invoiceId`, `customerId`, `subscriptionId` in request body
-- [x] Accept optional `config` overrides in request body
-- [x] Validate required fields
-- [x] Start dunning workflow with provided data
-- [x] Return workflow run ID or confirmation
-- [x] Add test for successful trigger (4 tests)
-- [x] Add test for conflict handling (2 tests)
-- [x] Add test for malformed request handling (11 tests)
-- **Status:** Complete (17 tests)
-- **Spec:** `specs/test-api.md`
-- **Notes:** Returns 409 Conflict if a workflow is already running for the invoice. Validates config fields (finalAction, maxAttempts, retrySchedule) when provided. Async workflow start with immediate response.
+### Issues
 
-### 5.3 Implement Dunning Status Endpoint (`app/api/dunning/[invoiceId]/route.ts`)
-- [x] Handle GET requests
-- [x] Get current dunning status for invoice from store
-- [x] Return attempt count, current state, timestamps
-- [x] Return 404 if no dunning in progress for invoice
-- [x] Add test for status retrieval (4 tests)
-- [x] Add test for 404 case (2 tests)
-- [x] Add edge case tests (3 tests)
-- **Status:** Complete (9 tests)
-- **Spec:** `specs/test-api.md`
-- **Notes:** Uses `getWorkflowRunByInvoice()` from store which returns the most recent run. Timestamps are returned in ISO format for API consumers. Returns workflow state, outcome, attempt count, and final action when applicable.
+- [ ] **`lib/dunning/steps/check-invoice-status.ts`** - Missing `maxRetries` configuration
+- [ ] **`lib/dunning/steps/send-dunning-email.ts`** - Missing `maxRetries` configuration
+- [ ] **`lib/dunning/steps/restrict-access.ts`** - Missing `maxRetries` configuration
+- [ ] **`lib/dunning/steps/execute-final-action.ts`** - Missing `maxRetries` configuration
 
-### 5.4 Implement Pay Invoice Test Endpoint (`app/api/test/pay-invoice/route.ts`)
-- [x] Handle POST requests
-- [x] Accept `invoiceId` in request body
-- [x] Update mock store to mark invoice as paid
-- [x] Return confirmation
-- [x] Add test demonstrating recovery path
-- [x] Add 404 handling for non-existent invoices
-- [x] Add test for already-paid invoices (idempotent)
-- [x] Add malformed request handling tests (6 tests)
-- **Status:** Complete (13 tests)
-- **Spec:** `specs/test-api.md`
-- **Notes:** Returns 404 if invoice doesn't exist. Returns success with message 'Invoice was already paid' for idempotent repeated calls. Supports all invoice statuses (open, past_due, uncollectible).
+**Fix pattern**:
+```typescript
+export async function checkInvoiceStatus(invoiceId: string): Promise<InvoiceState> {
+  "use step";
+  // ... implementation
+}
+checkInvoiceStatus.maxRetries = 5;
+```
 
-### 5.5 Implement State Dump Endpoint (`app/api/test/state/route.ts`)
-- [x] Handle GET requests
-- [x] Return full mock store state as JSON
-- [x] Include all invoices, email logs, subscription states
-- [x] Add test for state inspection (10 tests)
-- **Status:** Complete (10 tests)
-- **Spec:** `specs/test-api.md`
-- **Notes:** Returns invoices, workflowRuns, emailLogs, subscriptionOperations, processedEventIds, restrictedCustomers, pausedSubscriptions, canceledSubscriptions. Includes _summary object with counts for quick inspection.
+### Exponential Backoff
 
----
-
-## Phase 6: Integration & End-to-End Tests
-
-### 6.1 Integration Tests
-- [x] Test triggering workflow via /api/dunning/start
-- [x] Test simulating payment recovery via /api/test/pay-invoice
-- [x] Test full flow: webhook → workflow → recovery
-- [x] Test full flow: webhook → workflow → exhaustion
-- **Status:** Complete (12 tests)
-- **Spec:** Various
-- **Notes:** Integration tests in `lib/dunning/__tests__/integration.test.ts`. Tests verify end-to-end behavior: API routes triggering workflows, payment simulation causing recovery, webhook to workflow completion, and exhaustion with final actions. Workflow package is mocked for timing control, but all other components interact as in production.
-
-### 6.2 Documentation
-- [x] Update AGENTS.md with build & run commands
-- [x] Update AGENTS.md with validation commands
-- [x] Ensure README has project-specific instructions
-- **Status:** Complete
-- **Notes:** README updated with dunning workflow overview, architecture diagram, API endpoint documentation, configuration options, project structure, testing instructions, and production considerations.
+- [ ] Step functions use fixed retry delays. Consider implementing exponential backoff using `getStepMetadata().attempt`:
+  ```typescript
+  const { attempt } = getStepMetadata();
+  const delay = Math.min((attempt ** 2) * 1000, 60000);
+  throw new RetryableError('...', { retryAfter: delay });
+  ```
 
 ---
 
 ## Summary
 
-**Total Items:** 76 tasks across 6 phases
-**Completed:** All phases complete - 272 tests passing
-**In Progress:** None
-**Remaining:** None - Implementation complete
+| Priority | Category | Count |
+|----------|----------|-------|
+| CRITICAL | Directive Placement | 5 |
+| CRITICAL | Determinism | 1 |
+| HIGH | Workflow Triggering | 4 |
+| MEDIUM | Step Configuration | 5 |
+| **Total** | | **15** |
 
-### Dependency Order
-1. **Phase 1** must complete before other phases (types and test framework are foundational)
-2. **Phase 2** (mocks) must complete before Phase 3 (step functions rely on mocks)
-3. **Phase 3** (steps) must complete before Phase 4 (workflow orchestrates steps)
-4. **Phase 4** (workflow) must complete before Phase 5 (APIs trigger workflows)
-5. **Phase 5** and **Phase 6** can proceed in parallel
+---
 
-### Key Architecture Decisions
-- All shared code lives in `lib/dunning/`
-- Mock providers are in `lib/dunning/providers/`
-- Step functions are in `lib/dunning/steps/`
-- API routes follow Next.js App Router conventions in `app/api/`
-- Tests live alongside source files or in `__tests__/` directories
-- Deterministic webhook token format: `dunning:${invoiceId}`
-- Duration strings parsed from human-readable format: "1d", "3d", "7d"
+## Recommended Fix Order
+
+1. Fix directive placement in all files (CRITICAL - nothing works without this)
+2. Fix determinism violation in workflow.ts (CRITICAL - breaks replay)
+3. Update API routes to use `start()` (HIGH - enables proper runtime)
+4. Add `maxRetries` and exponential backoff (MEDIUM - improves reliability)
