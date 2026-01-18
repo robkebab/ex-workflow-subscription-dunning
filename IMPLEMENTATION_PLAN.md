@@ -244,13 +244,17 @@ This document tracks the implementation of a production-leaning subscription dun
 - **Notes:** Uses `getWorkflowRunByInvoice()` from store which returns the most recent run. Timestamps are returned in ISO format for API consumers. Returns workflow state, outcome, attempt count, and final action when applicable.
 
 ### 5.4 Implement Pay Invoice Test Endpoint (`app/api/test/pay-invoice/route.ts`)
-- [ ] Handle POST requests
-- [ ] Accept `invoiceId` in request body
-- [ ] Update mock store to mark invoice as paid
-- [ ] Return confirmation
-- [ ] Add test demonstrating recovery path
-- **Status:** Not started
+- [x] Handle POST requests
+- [x] Accept `invoiceId` in request body
+- [x] Update mock store to mark invoice as paid
+- [x] Return confirmation
+- [x] Add test demonstrating recovery path
+- [x] Add 404 handling for non-existent invoices
+- [x] Add test for already-paid invoices (idempotent)
+- [x] Add malformed request handling tests (6 tests)
+- **Status:** Complete (13 tests)
 - **Spec:** `specs/test-api.md`
+- **Notes:** Returns 404 if invoice doesn't exist. Returns success with message 'Invoice was already paid' for idempotent repeated calls. Supports all invoice statuses (open, past_due, uncollectible).
 
 ### 5.5 Implement State Dump Endpoint (`app/api/test/state/route.ts`)
 - [ ] Handle GET requests
@@ -283,9 +287,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5.1-5.3 (Stripe Webhook, Dunning Start, Dunning Status) - 237 tests passing
-**In Progress:** Phase 5 (API Endpoints) - 5.1, 5.2, 5.3 Complete
-**Remaining:** Phases 5.4-5.5, 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5.1-5.4 (Stripe Webhook, Dunning Start, Dunning Status, Pay Invoice) - 250 tests passing
+**In Progress:** Phase 5 (API Endpoints) - 5.1, 5.2, 5.3, 5.4 Complete
+**Remaining:** Phase 5.5, Phase 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
