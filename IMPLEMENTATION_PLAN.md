@@ -7,30 +7,30 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Phase 1: Foundation (Dependencies & Types)
 
 ### 1.1 Install Workflow DevKit
-- [ ] Add `@anthropic-ai/workflow-devkit` to dependencies in package.json
-- [ ] Install package and verify import works
-- **Status:** Not started
-- **Spec:** Required by all workflow specs
+- [x] Add `workflow` package to dependencies (Vercel's Workflow DevKit at useworkflow.dev)
+- [x] Configure `next.config.ts` with `withWorkflow()` wrapper
+- [x] Verify build succeeds with workflow routes
+- **Status:** Complete
+- **Notes:** The package is `workflow` (not `@anthropic-ai/workflow-devkit`). It adds `/.well-known/workflow/v1/*` routes.
 
 ### 1.2 Install Test Framework
-- [ ] Add Vitest to devDependencies (preferred for Next.js ecosystem)
-- [ ] Configure vitest.config.ts
-- [ ] Add test script to package.json
-- **Status:** Not started
-- **Spec:** Required for all acceptance criteria
+- [x] Add Vitest to devDependencies
+- [x] Configure vitest.config.ts with path aliases
+- [x] Add test scripts to package.json (test, test:watch, test:coverage)
+- **Status:** Complete
 
 ### 1.3 Implement Types & Configuration (`lib/dunning/types.ts`)
-- [ ] Define `DunningWorkflowInput` interface
-- [ ] Define `DunningConfig` interface with optional fields
-- [ ] Define `InvoiceState` interface
-- [ ] Define `DunningResult` interface
-- [ ] Export `DEFAULT_RETRY_SCHEDULE` constant: `["1d", "3d", "7d"]`
-- [ ] Export `DEFAULT_MAX_ATTEMPTS` constant: `3`
-- [ ] Export `DEFAULT_FINAL_ACTION` constant: `'pause'`
-- [ ] Export `DEFAULT_RESTRICT_ACCESS_AFTER_ATTEMPT` constant: `2`
-- [ ] Define `EmailEscalationLevel` type/enum (levels 0, 1, 2)
-- [ ] Create test to verify all types and constants are importable
-- **Status:** Not started
+- [x] Define `DunningWorkflowInput` interface
+- [x] Define `DunningConfig` interface with optional fields
+- [x] Define `InvoiceState` interface
+- [x] Define `DunningResult` interface
+- [x] Export `DEFAULT_RETRY_SCHEDULE` constant: `["1d", "3d", "7d"]`
+- [x] Export `DEFAULT_MAX_ATTEMPTS` constant: `3`
+- [x] Export `DEFAULT_FINAL_ACTION` constant: `'pause'`
+- [x] Export `DEFAULT_RESTRICT_ACCESS_AFTER_ATTEMPT` constant: `2`
+- [x] Define `EmailEscalationLevel` type (levels 0, 1, 2)
+- [x] Create test to verify all types and constants are importable (13 tests passing)
+- **Status:** Complete
 - **Spec:** `specs/types-configuration.md`
 
 ---
@@ -38,53 +38,54 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Phase 2: Mock Infrastructure
 
 ### 2.1 Implement In-Memory Dunning Store (`lib/dunning/store.ts`)
-- [ ] Create `DunningStore` class with invoice state tracking
-- [ ] Implement `getInvoice(invoiceId)` method
-- [ ] Implement `setInvoiceStatus(invoiceId, status)` method
-- [ ] Implement `markInvoicePaid(invoiceId)` method for test manipulation
-- [ ] Implement `reset()` method for test isolation
-- [ ] Track workflow runs and their states
-- [ ] Support concurrent access patterns
-- [ ] Add logging for observability
-- **Status:** Not started
+- [x] Create `DunningStore` class with invoice state tracking
+- [x] Implement `getInvoice(invoiceId)` method
+- [x] Implement `setInvoiceStatus(invoiceId, status)` method
+- [x] Implement `markInvoicePaid(invoiceId)` method for test manipulation
+- [x] Implement `reset()` method for test isolation
+- [x] Track workflow runs and their states
+- [x] Support concurrent access patterns
+- [x] Add logging for observability
+- **Status:** Complete (43 tests)
 - **Spec:** `specs/mock-providers.md`
 
 ### 2.2 Implement Mock Stripe Provider (`lib/dunning/providers/stripe.ts`)
-- [ ] Implement `getInvoice(invoiceId)` returning `InvoiceState`
-- [ ] Implement `checkInvoiceStatus(invoiceId)` returning status
-- [ ] Support `next_payment_attempt` hint for testing
-- [ ] Simulate occasional 429 rate limit responses (configurable)
-- [ ] Simulate configurable latency (50-200ms)
-- [ ] Log all operations for debugging
-- **Status:** Not started
+- [x] Implement `getInvoice(invoiceId)` returning `InvoiceState`
+- [x] Implement `checkInvoiceStatus(invoiceId)` returning status
+- [x] Support `next_payment_attempt` hint for testing
+- [x] Simulate occasional 429 rate limit responses (configurable)
+- [x] Simulate configurable latency (50-200ms)
+- [x] Log all operations for debugging
+- **Status:** Complete (19 tests)
 - **Spec:** `specs/mock-providers.md`
 
 ### 2.3 Implement Mock Email Service (`lib/dunning/providers/email.ts`)
-- [ ] Implement `sendEmail(options)` with idempotency key support
-- [ ] Accept escalation level, webhook URL, and customer details
-- [ ] Log all sent emails with timestamp and content summary
-- [ ] Track calls by idempotency key to prevent duplicates
-- [ ] Simulate occasional transient failures (retry-able)
-- **Status:** Not started
+- [x] Implement `sendEmail(options)` with idempotency key support
+- [x] Accept escalation level, webhook URL, and customer details
+- [x] Log all sent emails with timestamp and content summary
+- [x] Track calls by idempotency key to prevent duplicates
+- [x] Simulate occasional transient failures (retry-able)
+- **Status:** Complete (14 tests)
 - **Spec:** `specs/mock-providers.md`
 
 ### 2.4 Implement Mock Subscription Service (`lib/dunning/providers/subscription.ts`)
-- [ ] Implement `pauseSubscription(subscriptionId)` - idempotent
-- [ ] Implement `cancelSubscription(subscriptionId)` - idempotent
-- [ ] Implement `restrictAccess(customerId)` - idempotent
-- [ ] Track operations by idempotency key
-- [ ] Log all operations
-- **Status:** Not started
+- [x] Implement `pauseSubscription(subscriptionId)` - idempotent
+- [x] Implement `cancelSubscription(subscriptionId)` - idempotent
+- [x] Implement `restrictAccess(customerId)` - idempotent
+- [x] Implement `markUnpaid(invoiceId)` - idempotent (added for mark_unpaid action)
+- [x] Track operations by idempotency key
+- [x] Log all operations
+- **Status:** Complete (13 tests)
 - **Spec:** `specs/mock-providers.md`
 
 ### 2.5 Mock Provider Tests
-- [ ] Test mock Stripe returns invoice state correctly
-- [ ] Test mock Stripe 429 simulation
-- [ ] Test mock email logs and respects idempotency
-- [ ] Test subscription operations are idempotent
-- [ ] Test store allows external state manipulation
-- [ ] Test retry behavior on transient failures
-- **Status:** Not started
+- [x] Test mock Stripe returns invoice state correctly
+- [x] Test mock Stripe 429 simulation
+- [x] Test mock email logs and respects idempotency
+- [x] Test subscription operations are idempotent
+- [x] Test store allows external state manipulation
+- [x] Test retry behavior on transient failures
+- **Status:** Complete (89 tests total across all mock providers)
 - **Spec:** `specs/mock-providers.md`
 
 ---
@@ -263,9 +264,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** 0
-**In Progress:** 0
-**Remaining:** 76
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure) - 89 tests passing
+**In Progress:** Phase 3 (Step Functions)
+**Remaining:** Phases 3-6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
