@@ -154,11 +154,13 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Phase 4: Core Workflow
 
 ### 4.1 Implement Duration Parser Utility (`lib/dunning/utils/duration.ts`)
-- [ ] Parse delay strings like "1d", "3d", "7d" to milliseconds
-- [ ] Support days (d), hours (h), minutes (m), seconds (s)
-- [ ] Add test for all supported formats
-- **Status:** Not started
+- [x] Parse delay strings like "1d", "3d", "7d" to milliseconds
+- [x] Support days (d), hours (h), minutes (m), seconds (s)
+- [x] Add test for all supported formats (42 tests)
+- [x] Add `formatDuration()` utility for inverse operation
+- **Status:** Complete
 - **Spec:** Implied by `specs/types-configuration.md` (retrySchedule uses delay strings)
+- **Notes:** Includes `parseDuration()` and `formatDuration()` functions. Handles whitespace, case insensitivity, and comprehensive error handling with `DurationParseError`.
 
 ### 4.2 Implement Main Dunning Workflow (`lib/dunning/workflow.ts`)
 - [ ] Use `"use workflow"` directive at function start
@@ -273,9 +275,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions) - 134 tests passing
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4.1 (Duration Parser) - 176 tests passing
 **In Progress:** Phase 4 (Core Workflow)
-**Remaining:** Phases 4, 5, 6
+**Remaining:** Phases 4.2-4.3, 5, 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
