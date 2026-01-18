@@ -77,7 +77,7 @@ export async function dunningWorkflow(input: DunningWorkflowInput): Promise<Dunn
 
   // Ensure invoice exists in store (for mock testing)
   // In production, the invoice would already exist in Stripe
-  let storedInvoice = dunningStore.getInvoice(invoiceId);
+  const storedInvoice = dunningStore.getInvoice(invoiceId);
   if (!storedInvoice) {
     dunningStore.createInvoice(invoiceId, customerId, subscriptionId);
   }
