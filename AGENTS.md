@@ -10,3 +10,4 @@
 ## General
 - Ensure you commit all changes after validating
 - Workflow package is `workflow` (Vercel's Workflow DevKit)
+- NEVER add 'install' dependency
