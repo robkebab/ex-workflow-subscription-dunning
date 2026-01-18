@@ -4,9 +4,13 @@
  * This endpoint enables developers to manually start a dunning workflow for testing
  * and debugging. It accepts invoice, customer, and subscription IDs along with
  * optional configuration overrides.
+ *
+ * Uses `start()` from workflow/api to properly trigger the workflow through the
+ * runtime, enabling durable execution, observability, and proper Run management.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { start } from 'workflow/api';
 import { dunningStore } from '@/lib/dunning/store';
 import { dunningWorkflow } from '@/lib/dunning/workflow';
 import type { DunningWorkflowInput, DunningConfig } from '@/lib/dunning/types';
@@ -114,10 +118,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     config,
   };
 
-  // Generate a run ID for tracking
-  const runId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // Start workflow via runtime - this enables durable execution and proper Run management
+  const run = await start(dunningWorkflow, [workflowInput]);
+  const runId = run.runId;
 
-  // Create workflow run record
+  // Create workflow run record for local tracking/status endpoint
   dunningStore.setWorkflowRun({
     runId,
     invoiceId,
@@ -128,8 +133,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     startedAt: Date.now(),
   });
 
-  // Start workflow asynchronously (don't await - return 200 quickly)
-  dunningWorkflow(workflowInput)
+  // Monitor workflow completion asynchronously for local state tracking
+  // The Run object provides status/returnValue, but we also update our store
+  run.returnValue
     .then((result) => {
       console.log(`[dunning-start] Workflow completed: runId=${runId}`, result);
       dunningStore.updateWorkflowRun(runId, {

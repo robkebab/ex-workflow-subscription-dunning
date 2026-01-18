@@ -37,19 +37,14 @@ API routes call the workflow function directly instead of using `start()` from `
 
 ### Issues
 
-- [ ] **`app/api/dunning/start/route.ts:132`** - Calls `dunningWorkflow(workflowInput)` directly
-  **Fix**: Use `start()` from `workflow/api`:
-  ```typescript
-  import { start } from "workflow/api";
-  const run = await start(dunningWorkflow, [workflowInput]);
-  ```
+- [x] **`app/api/dunning/start/route.ts`** - ~~Calls `dunningWorkflow(workflowInput)` directly~~ Now uses `start()` from `workflow/api` and gets `runId` from the returned `Run` object. ✓
 
 - [ ] **`app/api/webhooks/stripe/route.ts:141`** - Calls `dunningWorkflow(workflowInput)` directly
   **Fix**: Same as above - use `start()` from `workflow/api`
 
-- [ ] **Manual runId generation** - Both routes generate their own runIds instead of using `run.runId` from the Run object returned by `start()`
+- [ ] **Manual runId generation (stripe webhook)** - Stripe webhook route still generates its own runId instead of using `run.runId` from the Run object returned by `start()`
 
-- [ ] **Manual state tracking** - Both routes manually update `dunningStore` for workflow state when the Run object already provides `status`, `returnValue`, etc.
+- [ ] **Manual state tracking** - Both routes manually update `dunningStore` for workflow state when the Run object already provides `status`, `returnValue`, etc. (Note: dunning/start route now uses `run.returnValue` promise but still updates local store for backward compatibility with status endpoint)
 
 ---
 
@@ -90,9 +85,9 @@ checkInvoiceStatus.maxRetries = 5;
 |----------|----------|-------|
 | CRITICAL | Directive Placement | ✅ Complete |
 | CRITICAL | Determinism | ✅ Complete |
-| HIGH | Workflow Triggering | 4 |
+| HIGH | Workflow Triggering | 3 remaining (1 done) |
 | MEDIUM | Step Configuration | 5 |
-| **Total** | | **9** |
+| **Total Remaining** | | **8** |
 
 ---
 
@@ -100,5 +95,6 @@ checkInvoiceStatus.maxRetries = 5;
 
 1. ~~Fix directive placement in all files~~ ✅ Complete
 2. ~~Fix determinism violation in workflow.ts~~ ✅ Complete
-3. Update API routes to use `start()` (HIGH - enables proper runtime)
-4. Add `maxRetries` and exponential backoff (MEDIUM - improves reliability)
+3. ~~Update `app/api/dunning/start/route.ts` to use `start()`~~ ✅ Complete
+4. Update `app/api/webhooks/stripe/route.ts` to use `start()` (HIGH - enables proper runtime)
+5. Add `maxRetries` and exponential backoff (MEDIUM - improves reliability)

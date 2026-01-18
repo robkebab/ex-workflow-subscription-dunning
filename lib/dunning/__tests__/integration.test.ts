@@ -19,6 +19,23 @@ import { mockStripe } from '../providers/stripe';
 import { mockEmailService } from '../providers/email';
 import { mockSubscriptionService } from '../providers/subscription';
 
+// Counter for generating unique run IDs in integration tests
+let mockRunIdCounter = 0;
+
+// Mock the workflow/api module - the start() function is used to trigger workflows
+// We mock it to call the workflow directly for testing without the runtime infrastructure
+vi.mock('workflow/api', () => ({
+  start: vi.fn().mockImplementation(async (workflowFn: Function, args: unknown[]) => {
+    const runId = `run_integration_${++mockRunIdCounter}`;
+    // Call the workflow directly and track completion
+    const returnValuePromise = workflowFn(...args);
+    return {
+      runId,
+      returnValue: returnValuePromise,
+    };
+  }),
+}));
+
 // Mock the workflow package to control timing in tests
 vi.mock('workflow', () => {
   return {
@@ -100,6 +117,8 @@ describe('Integration Tests', () => {
     mockSubscriptionService.configure({ simulateLatency: false });
 
     vi.clearAllMocks();
+    // Reset mock run ID counter for consistent test isolation
+    mockRunIdCounter = 0;
   });
 
   describe('triggering workflow via /api/dunning/start', () => {
@@ -185,35 +204,32 @@ describe('Integration Tests', () => {
     it('rejects duplicate workflow for same invoice', async () => {
       const invoiceId = 'inv_duplicate_check';
 
-      // First request
-      const request1 = createPostRequest('http://localhost:3000/api/dunning/start', {
+      // Pre-create a running workflow record to simulate in-progress workflow
+      // This tests the conflict detection without race conditions from async workflow completion
+      const existingRunId = 'run_pre_existing';
+      dunningStore.setWorkflowRun({
+        runId: existingRunId,
+        invoiceId,
+        customerId: 'cus_dup',
+        subscriptionId: 'sub_dup',
+        currentAttempt: 1,
+        state: 'running',
+        startedAt: Date.now(),
+      });
+
+      // Second request should fail due to existing running workflow
+      const request = createPostRequest('http://localhost:3000/api/dunning/start', {
         invoiceId,
         customerId: 'cus_dup',
         subscriptionId: 'sub_dup',
       });
 
-      const response1 = await startDunning(request1);
-      const data1 = await response1.json();
-      expect(response1.status).toBe(200);
+      const response = await startDunning(request);
+      const data = await response.json();
 
-      // Keep workflow in running state
-      const run = dunningStore.getWorkflowRun(data1.runId);
-      if (run) {
-        dunningStore.setWorkflowRun({ ...run, state: 'running' });
-      }
-
-      // Second request should fail
-      const request2 = createPostRequest('http://localhost:3000/api/dunning/start', {
-        invoiceId,
-        customerId: 'cus_dup',
-        subscriptionId: 'sub_dup',
-      });
-
-      const response2 = await startDunning(request2);
-      const data2 = await response2.json();
-
-      expect(response2.status).toBe(409);
-      expect(data2.error).toBe('Workflow already running for this invoice');
+      expect(response.status).toBe(409);
+      expect(data.error).toBe('Workflow already running for this invoice');
+      expect(data.runId).toBe(existingRunId);
     });
   });
 

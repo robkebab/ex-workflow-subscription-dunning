@@ -3,6 +3,9 @@
  *
  * This endpoint allows developers to manually trigger dunning workflows for testing.
  * Tests verify request validation, workflow creation, and conflict handling.
+ *
+ * The endpoint uses `start()` from workflow/api to trigger workflows through the
+ * runtime, which provides durable execution, observability, and proper Run management.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -10,13 +13,28 @@ import { NextRequest } from 'next/server';
 import { POST } from '../route';
 import { dunningStore } from '@/lib/dunning/store';
 
-// Mock the workflow module to avoid actually running workflows during tests
-vi.mock('@/lib/dunning/workflow', () => ({
-  dunningWorkflow: vi.fn().mockResolvedValue({
-    invoiceId: 'inv_test123',
-    outcome: 'recovered',
-    attemptsUsed: 1,
+// Counter for generating unique run IDs in tests
+let mockRunIdCounter = 0;
+
+// Mock the workflow/api module to avoid actually running workflows during tests
+// The start() function returns a Run object with runId and returnValue
+vi.mock('workflow/api', () => ({
+  start: vi.fn().mockImplementation(() => {
+    const runId = `run_mock_${++mockRunIdCounter}`;
+    return Promise.resolve({
+      runId,
+      returnValue: Promise.resolve({
+        invoiceId: 'inv_test123',
+        outcome: 'recovered',
+        attemptsUsed: 1,
+      }),
+    });
   }),
+}));
+
+// Mock the workflow module (still needed for import)
+vi.mock('@/lib/dunning/workflow', () => ({
+  dunningWorkflow: vi.fn(),
 }));
 
 /**
@@ -56,6 +74,8 @@ describe('POST /api/dunning/start', () => {
     // Reset store state before each test
     dunningStore.reset();
     vi.clearAllMocks();
+    // Reset mock run ID counter for consistent test isolation
+    mockRunIdCounter = 0;
   });
 
   describe('successful workflow trigger', () => {
