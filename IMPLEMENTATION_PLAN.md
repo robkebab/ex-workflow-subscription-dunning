@@ -7,30 +7,30 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Phase 1: Foundation (Dependencies & Types)
 
 ### 1.1 Install Workflow DevKit
-- [ ] Add `@anthropic-ai/workflow-devkit` to dependencies in package.json
-- [ ] Install package and verify import works
-- **Status:** Not started
-- **Spec:** Required by all workflow specs
+- [x] Add `workflow` package to dependencies (Vercel's Workflow DevKit at useworkflow.dev)
+- [x] Configure `next.config.ts` with `withWorkflow()` wrapper
+- [x] Verify build succeeds with workflow routes
+- **Status:** Complete
+- **Notes:** The package is `workflow` (not `@anthropic-ai/workflow-devkit`). It adds `/.well-known/workflow/v1/*` routes.
 
 ### 1.2 Install Test Framework
-- [ ] Add Vitest to devDependencies (preferred for Next.js ecosystem)
-- [ ] Configure vitest.config.ts
-- [ ] Add test script to package.json
-- **Status:** Not started
-- **Spec:** Required for all acceptance criteria
+- [x] Add Vitest to devDependencies
+- [x] Configure vitest.config.ts with path aliases
+- [x] Add test scripts to package.json (test, test:watch, test:coverage)
+- **Status:** Complete
 
 ### 1.3 Implement Types & Configuration (`lib/dunning/types.ts`)
-- [ ] Define `DunningWorkflowInput` interface
-- [ ] Define `DunningConfig` interface with optional fields
-- [ ] Define `InvoiceState` interface
-- [ ] Define `DunningResult` interface
-- [ ] Export `DEFAULT_RETRY_SCHEDULE` constant: `["1d", "3d", "7d"]`
-- [ ] Export `DEFAULT_MAX_ATTEMPTS` constant: `3`
-- [ ] Export `DEFAULT_FINAL_ACTION` constant: `'pause'`
-- [ ] Export `DEFAULT_RESTRICT_ACCESS_AFTER_ATTEMPT` constant: `2`
-- [ ] Define `EmailEscalationLevel` type/enum (levels 0, 1, 2)
-- [ ] Create test to verify all types and constants are importable
-- **Status:** Not started
+- [x] Define `DunningWorkflowInput` interface
+- [x] Define `DunningConfig` interface with optional fields
+- [x] Define `InvoiceState` interface
+- [x] Define `DunningResult` interface
+- [x] Export `DEFAULT_RETRY_SCHEDULE` constant: `["1d", "3d", "7d"]`
+- [x] Export `DEFAULT_MAX_ATTEMPTS` constant: `3`
+- [x] Export `DEFAULT_FINAL_ACTION` constant: `'pause'`
+- [x] Export `DEFAULT_RESTRICT_ACCESS_AFTER_ATTEMPT` constant: `2`
+- [x] Define `EmailEscalationLevel` type (levels 0, 1, 2)
+- [x] Create test to verify all types and constants are importable (13 tests passing)
+- **Status:** Complete
 - **Spec:** `specs/types-configuration.md`
 
 ---
@@ -263,9 +263,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** 0
-**In Progress:** 0
-**Remaining:** 76
+**Completed:** Phase 1 (Foundation) - 14 tasks
+**In Progress:** Phase 2 (Mock Infrastructure)
+**Remaining:** Phases 2-6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
