@@ -232,14 +232,16 @@ This document tracks the implementation of a production-leaning subscription dun
 - **Notes:** Returns 409 Conflict if a workflow is already running for the invoice. Validates config fields (finalAction, maxAttempts, retrySchedule) when provided. Async workflow start with immediate response.
 
 ### 5.3 Implement Dunning Status Endpoint (`app/api/dunning/[invoiceId]/route.ts`)
-- [ ] Handle GET requests
-- [ ] Get current dunning status for invoice from store
-- [ ] Return attempt count, current state, timestamps
-- [ ] Return 404 if no dunning in progress for invoice
-- [ ] Add test for status retrieval
-- [ ] Add test for 404 case
-- **Status:** Not started
+- [x] Handle GET requests
+- [x] Get current dunning status for invoice from store
+- [x] Return attempt count, current state, timestamps
+- [x] Return 404 if no dunning in progress for invoice
+- [x] Add test for status retrieval (4 tests)
+- [x] Add test for 404 case (2 tests)
+- [x] Add edge case tests (3 tests)
+- **Status:** Complete (9 tests)
 - **Spec:** `specs/test-api.md`
+- **Notes:** Uses `getWorkflowRunByInvoice()` from store which returns the most recent run. Timestamps are returned in ISO format for API consumers. Returns workflow state, outcome, attempt count, and final action when applicable.
 
 ### 5.4 Implement Pay Invoice Test Endpoint (`app/api/test/pay-invoice/route.ts`)
 - [ ] Handle POST requests
@@ -281,9 +283,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5.1-5.2 (Stripe Webhook, Dunning Start) - 228 tests passing
-**In Progress:** Phase 5 (API Endpoints) - 5.1, 5.2 Complete
-**Remaining:** Phases 5.3-5.5, 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5.1-5.3 (Stripe Webhook, Dunning Start, Dunning Status) - 237 tests passing
+**In Progress:** Phase 5 (API Endpoints) - 5.1, 5.2, 5.3 Complete
+**Remaining:** Phases 5.4-5.5, 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
