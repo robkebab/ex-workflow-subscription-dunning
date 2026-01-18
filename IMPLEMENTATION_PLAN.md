@@ -39,12 +39,9 @@ API routes call the workflow function directly instead of using `start()` from `
 
 - [x] **`app/api/dunning/start/route.ts`** - ~~Calls `dunningWorkflow(workflowInput)` directly~~ Now uses `start()` from `workflow/api` and gets `runId` from the returned `Run` object. ✓
 
-- [ ] **`app/api/webhooks/stripe/route.ts:141`** - Calls `dunningWorkflow(workflowInput)` directly
-  **Fix**: Same as above - use `start()` from `workflow/api`
+- [x] **`app/api/webhooks/stripe/route.ts`** - ~~Calls `dunningWorkflow(workflowInput)` directly~~ Now uses `start()` from `workflow/api` and gets `runId` from the returned `Run` object. ✓
 
-- [ ] **Manual runId generation (stripe webhook)** - Stripe webhook route still generates its own runId instead of using `run.runId` from the Run object returned by `start()`
-
-- [ ] **Manual state tracking** - Both routes manually update `dunningStore` for workflow state when the Run object already provides `status`, `returnValue`, etc. (Note: dunning/start route now uses `run.returnValue` promise but still updates local store for backward compatibility with status endpoint)
+- [ ] **Manual state tracking** - Both routes manually update `dunningStore` for workflow state when the Run object already provides `status`, `returnValue`, etc. (Note: Both routes now use `run.returnValue` promise but still update local store for backward compatibility with status endpoint)
 
 ---
 
@@ -85,9 +82,9 @@ checkInvoiceStatus.maxRetries = 5;
 |----------|----------|-------|
 | CRITICAL | Directive Placement | ✅ Complete |
 | CRITICAL | Determinism | ✅ Complete |
-| HIGH | Workflow Triggering | 3 remaining (1 done) |
+| HIGH | Workflow Triggering | 1 remaining (2 done) |
 | MEDIUM | Step Configuration | 5 |
-| **Total Remaining** | | **8** |
+| **Total Remaining** | | **6** |
 
 ---
 
@@ -96,5 +93,5 @@ checkInvoiceStatus.maxRetries = 5;
 1. ~~Fix directive placement in all files~~ ✅ Complete
 2. ~~Fix determinism violation in workflow.ts~~ ✅ Complete
 3. ~~Update `app/api/dunning/start/route.ts` to use `start()`~~ ✅ Complete
-4. Update `app/api/webhooks/stripe/route.ts` to use `start()` (HIGH - enables proper runtime)
+4. ~~Update `app/api/webhooks/stripe/route.ts` to use `start()`~~ ✅ Complete
 5. Add `maxRetries` and exponential backoff (MEDIUM - improves reliability)

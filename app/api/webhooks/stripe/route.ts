@@ -5,12 +5,16 @@
  * when an invoice payment fails. It implements idempotency to prevent duplicate
  * workflow starts from retried webhook deliveries.
  *
+ * Uses `start()` from workflow/api to properly trigger the workflow through the
+ * runtime, enabling durable execution, observability, and proper Run management.
+ *
  * Security Note: Webhook signature verification is skipped for this demo.
  * In production, you should verify the Stripe-Signature header using
  * stripe.webhooks.constructEvent() to ensure the webhook is authentic.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { start } from 'workflow/api';
 import { dunningStore } from '@/lib/dunning/store';
 import { dunningWorkflow } from '@/lib/dunning/workflow';
 import type { DunningWorkflowInput } from '@/lib/dunning/types';
@@ -122,10 +126,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     subscriptionId: subscriptionId || '',
   };
 
-  // Generate a run ID for tracking
-  const runId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // Start workflow via runtime - this enables durable execution and proper Run management
+  const run = await start(dunningWorkflow, [workflowInput]);
+  const runId = run.runId;
 
-  // Create workflow run record
+  // Create workflow run record for local tracking/status endpoint
   dunningStore.setWorkflowRun({
     runId,
     invoiceId,
@@ -136,9 +141,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     startedAt: Date.now(),
   });
 
-  // Start workflow asynchronously (don't await - return 200 quickly)
-  // In production, this would be handled by the workflow runtime
-  dunningWorkflow(workflowInput)
+  // Monitor workflow completion asynchronously for local state tracking
+  // The Run object provides status/returnValue, but we also update our store
+  run.returnValue
     .then((result) => {
       console.log(`[stripe-webhook] Workflow completed: runId=${runId}`, result);
       dunningStore.updateWorkflowRun(runId, {
