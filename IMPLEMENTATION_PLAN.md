@@ -17,7 +17,7 @@ Per the Workflow DevKit documentation:
 - [x] **`lib/dunning/steps/check-invoice-status.ts`** - `"use step"` ~~at file level~~, moved inside `checkInvoiceStatus()` function body ✓
 - [x] **`lib/dunning/steps/send-dunning-email.ts`** - `"use step"` ~~at file level~~, moved inside `sendDunningEmail()` function body ✓
 - [x] **`lib/dunning/steps/restrict-access.ts`** - `"use step"` ~~at file level~~, moved inside `restrictCustomerAccess()` function body ✓
-- [ ] **`lib/dunning/steps/execute-final-action.ts:13`** - `"use step"` at file level, must move inside `executeFinalAction()` function body
+- [x] **`lib/dunning/steps/execute-final-action.ts`** - `"use step"` ~~at file level~~, moved inside `executeFinalAction()` function body ✓
 
 ---
 
@@ -95,11 +95,11 @@ checkInvoiceStatus.maxRetries = 5;
 
 | Priority | Category | Count |
 |----------|----------|-------|
-| CRITICAL | Directive Placement | 1 remaining |
+| CRITICAL | Directive Placement | ✅ Complete |
 | CRITICAL | Determinism | 1 |
 | HIGH | Workflow Triggering | 4 |
 | MEDIUM | Step Configuration | 5 |
-| **Total** | | **11** |
+| **Total** | | **10** |
 
 ---
 
