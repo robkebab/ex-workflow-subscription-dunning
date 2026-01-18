@@ -5,7 +5,6 @@
  * It uses the stepId as an idempotency key to prevent duplicate emails.
  * The webhook URL is included as a "fix payment" link for the customer.
  */
-"use step";
 
 import { FatalError, RetryableError, getStepMetadata } from 'workflow';
 import type { EmailEscalationLevel } from '../types';
@@ -78,6 +77,8 @@ function getEscalationLevel(attemptNumber: number, maxAttempts: number): EmailEs
 export async function sendDunningEmail(
   options: SendDunningEmailOptions
 ): Promise<SendDunningEmailResult> {
+  "use step";
+
   const metadata = getStepMetadata();
   const escalationLevel = getEscalationLevel(options.attemptNumber, options.maxAttempts ?? 3);
 

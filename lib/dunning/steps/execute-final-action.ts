@@ -10,7 +10,6 @@
  * - cancel: Cancels the subscription entirely
  * - mark_unpaid: Marks the invoice as uncollectible but keeps the subscription active
  */
-"use step";
 
 import { FatalError, RetryableError, getStepMetadata } from 'workflow';
 import {
@@ -66,6 +65,8 @@ export interface ExecuteFinalActionResult {
 export async function executeFinalAction(
   options: ExecuteFinalActionOptions
 ): Promise<ExecuteFinalActionResult> {
+  "use step";
+
   const metadata = getStepMetadata();
 
   console.log(

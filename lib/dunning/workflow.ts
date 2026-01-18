@@ -11,7 +11,6 @@
  * - Promise.race to race customer action vs timeout
  * - Step functions for each operation (emails, status checks, actions)
  */
-"use workflow";
 
 import { createWebhook, sleep } from 'workflow';
 import type { DunningWorkflowInput, DunningResult, DunningConfig } from './types';
@@ -59,6 +58,8 @@ function mergeConfig(userConfig?: DunningConfig): Required<Omit<DunningConfig, '
  * @returns Dunning result with outcome ('recovered' or 'exhausted') and details
  */
 export async function dunningWorkflow(input: DunningWorkflowInput): Promise<DunningResult> {
+  "use workflow";
+
   const { invoiceId, customerId, subscriptionId, config: userConfig } = input;
   const config = mergeConfig(userConfig);
 
