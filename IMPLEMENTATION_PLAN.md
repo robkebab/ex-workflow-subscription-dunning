@@ -279,19 +279,19 @@ This document tracks the implementation of a production-leaning subscription dun
 - **Notes:** Integration tests in `lib/dunning/__tests__/integration.test.ts`. Tests verify end-to-end behavior: API routes triggering workflows, payment simulation causing recovery, webhook to workflow completion, and exhaustion with final actions. Workflow package is mocked for timing control, but all other components interact as in production.
 
 ### 6.2 Documentation
-- [ ] Update AGENTS.md with build & run commands
-- [ ] Update AGENTS.md with validation commands
+- [x] Update AGENTS.md with build & run commands
+- [x] Update AGENTS.md with validation commands
 - [ ] Ensure README has project-specific instructions
-- **Status:** Not started
+- **Status:** In progress (AGENTS.md complete, README pending)
 
 ---
 
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5 (API Endpoints), Phase 6.1 (Integration Tests) - 272 tests passing
-**In Progress:** None
-**Remaining:** Phase 6.2 (Documentation)
+**Completed:** Phase 1-5, Phase 6.1 (Integration Tests) - 272 tests passing
+**In Progress:** Phase 6.2 (Documentation) - AGENTS.md updated
+**Remaining:** README project-specific instructions
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)

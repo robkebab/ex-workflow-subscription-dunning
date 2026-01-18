@@ -1,10 +1,13 @@
 ## Build & Run
-- `npm run dev` - Start development server
+- `npm run dev` - Start development server (port 3000)
 - `npm run build` - Production build
 - `npm run start` - Start production server
 
 ## Validation
-- `npm test` - Run all tests
+- `npm test` - Run all tests (vitest)
+- `npm run test:watch` - Run tests in watch mode
+- `npm run test:coverage` - Run tests with coverage report
+- `npm run lint` - Run ESLint
 - `npm run build` - Verify build succeeds
 
 ## Practices
