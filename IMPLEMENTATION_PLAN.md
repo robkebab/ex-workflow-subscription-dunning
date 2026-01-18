@@ -107,17 +107,20 @@ This document tracks the implementation of a production-leaning subscription dun
 - **Notes:** Uses `getStepMetadata()` for logging stepId and attempt number. Handles InvoiceNotFoundError, RateLimitError, and TransientError from mock Stripe provider.
 
 ### 3.2 Implement sendDunningEmail Step (`lib/dunning/steps/send-dunning-email.ts`)
-- [ ] Use `"use step"` directive
-- [ ] Accept attempt number to determine escalation level
-- [ ] Include webhook URL as "fix payment" link
-- [ ] Use `stepId` from `getStepMetadata()` as idempotency key
-- [ ] Throw `RetryableError` for 429 with delay hint
-- [ ] Throw `FatalError` for non-recoverable failures
-- [ ] Add test for successful send
-- [ ] Add test for retry on 429
-- [ ] Add test for idempotency
-- **Status:** Not started
+- [x] Use `"use step"` directive
+- [x] Accept attempt number to determine escalation level
+- [x] Include webhook URL as "fix payment" link
+- [x] Use `stepId` from `getStepMetadata()` as idempotency key
+- [x] Throw `RetryableError` for transient failures with delay hint
+- [x] Throw `FatalError` for non-recoverable failures
+- [x] Add test for successful send (2 tests)
+- [x] Add test for escalation levels (4 tests)
+- [x] Add test for idempotency (2 tests)
+- [x] Add test for retry on transient failure (3 tests)
+- [x] Add test for webhook URL inclusion (1 test)
+- **Status:** Complete (12 tests)
 - **Spec:** `specs/step-functions.md`
+- **Notes:** Maps attempt numbers to escalation levels (1→0, 2→1, 3+→2). Uses stepId as idempotency key to prevent duplicate emails.
 
 ### 3.3 Implement restrictCustomerAccess Step (`lib/dunning/steps/restrict-access.ts`)
 - [ ] Use `"use step"` directive
@@ -266,9 +269,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3.1 (checkInvoiceStatus Step) - 98 tests passing
-**In Progress:** Phase 3 (Step Functions) - 3.1 complete, 3.2-3.4 remaining
-**Remaining:** Phases 3.2-3.4, 4, 5, 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3.1-3.2 (checkInvoiceStatus, sendDunningEmail Steps) - 110 tests passing
+**In Progress:** Phase 3 (Step Functions) - 3.1-3.2 complete, 3.3-3.4 remaining
+**Remaining:** Phases 3.3-3.4, 4, 5, 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
