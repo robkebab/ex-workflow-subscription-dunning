@@ -201,20 +201,21 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Phase 5: API Endpoints
 
 ### 5.1 Implement Stripe Webhook Endpoint (`app/api/webhooks/stripe/route.ts`)
-- [ ] Handle POST requests
-- [ ] Parse `invoice.payment_failed` event from request body
-- [ ] Extract `data.object.id`, `data.object.customer`, `data.object.subscription`
-- [ ] Validate payload structure (return 400 on malformed)
-- [ ] Start dunning workflow with extracted data (asynchronously)
-- [ ] Implement idempotency: same event ID should not start duplicate workflows
-- [ ] Return 200 quickly after starting workflow
-- [ ] Log received events for observability
-- [ ] Add comment noting webhook signature verification skipped for demo
-- [ ] Add test for successful event processing
-- [ ] Add test for 400 on malformed payload
-- [ ] Add test for idempotency
-- **Status:** Not started
+- [x] Handle POST requests
+- [x] Parse `invoice.payment_failed` event from request body
+- [x] Extract `data.object.id`, `data.object.customer`, `data.object.subscription`
+- [x] Validate payload structure (return 400 on malformed)
+- [x] Start dunning workflow with extracted data (asynchronously)
+- [x] Implement idempotency: same event ID should not start duplicate workflows
+- [x] Return 200 quickly after starting workflow
+- [x] Log received events for observability
+- [x] Add comment noting webhook signature verification skipped for demo
+- [x] Add test for successful event processing (4 tests)
+- [x] Add test for 400 on malformed payload (8 tests)
+- [x] Add test for idempotency (2 tests)
+- **Status:** Complete (16 tests)
 - **Spec:** `specs/webhook-api.md`
+- **Notes:** Uses `dunningStore.hasProcessedEvent()` and `markEventProcessed()` for idempotency. Handles null subscription IDs for one-off invoices. Other event types are acknowledged but not processed.
 
 ### 5.2 Implement Dunning Start Endpoint (`app/api/dunning/start/route.ts`)
 - [ ] Handle POST requests
@@ -277,9 +278,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow) - 195 tests passing
-**In Progress:** Phase 5 (API Endpoints)
-**Remaining:** Phases 5, 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5.1 (Stripe Webhook) - 211 tests passing
+**In Progress:** Phase 5 (API Endpoints) - 5.1 Complete
+**Remaining:** Phases 5.2-5.5, 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
