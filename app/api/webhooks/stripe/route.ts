@@ -130,36 +130,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const run = await start(dunningWorkflow, [workflowInput]);
   const runId = run.runId;
 
-  // Create workflow run record for local tracking/status endpoint
-  dunningStore.setWorkflowRun({
-    runId,
+  // Store minimal mapping for status endpoint lookups
+  // The workflow runtime manages all state - we only need to map invoiceId -> runId
+  dunningStore.setInvoiceRunMapping({
     invoiceId,
+    runId,
     customerId,
     subscriptionId: subscriptionId || '',
-    currentAttempt: 0,
-    state: 'running',
-    startedAt: Date.now(),
   });
-
-  // Monitor workflow completion asynchronously for local state tracking
-  // The Run object provides status/returnValue, but we also update our store
-  run.returnValue
-    .then((result) => {
-      console.log(`[stripe-webhook] Workflow completed: runId=${runId}`, result);
-      dunningStore.updateWorkflowRun(runId, {
-        state: 'completed',
-        outcome: result.outcome,
-        finalAction: result.outcome === 'exhausted' ? result.finalAction : undefined,
-        completedAt: Date.now(),
-      });
-    })
-    .catch((error) => {
-      console.error(`[stripe-webhook] Workflow failed: runId=${runId}`, error);
-      dunningStore.updateWorkflowRun(runId, {
-        state: 'failed',
-        completedAt: Date.now(),
-      });
-    });
 
   console.log(`[stripe-webhook] Workflow started: runId=${runId}`);
 

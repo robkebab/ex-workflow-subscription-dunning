@@ -65,9 +65,27 @@ export interface SubscriptionOperation {
   executedAt: number;
 }
 
+/**
+ * Minimal mapping of invoiceId to runId for status lookups.
+ * The actual workflow state is managed by the workflow runtime via Run objects.
+ */
+export interface InvoiceRunMapping {
+  /** Invoice ID */
+  invoiceId: string;
+  /** Workflow run ID from the runtime */
+  runId: string;
+  /** Customer ID (for reference) */
+  customerId: string;
+  /** Subscription ID (for reference) */
+  subscriptionId: string;
+}
+
 export interface StoreState {
   invoices: Map<string, InvoiceState>;
+  /** @deprecated Use invoiceRunMappings instead. Kept for backward compatibility during migration. */
   workflowRuns: Map<string, WorkflowRun>;
+  /** Mapping of invoiceId to runId for status lookups */
+  invoiceRunMappings: Map<string, InvoiceRunMapping>;
   emailLogs: EmailLog[];
   subscriptionOperations: SubscriptionOperation[];
   processedEventIds: Set<string>;
@@ -84,7 +102,9 @@ export interface StoreState {
  */
 class DunningStore {
   private invoices: Map<string, InvoiceState> = new Map();
+  /** @deprecated Use invoiceRunMappings instead */
   private workflowRuns: Map<string, WorkflowRun> = new Map();
+  private invoiceRunMappings: Map<string, InvoiceRunMapping> = new Map();
   private emailLogs: EmailLog[] = [];
   private subscriptionOperations: SubscriptionOperation[] = [];
   private processedEventIds: Set<string> = new Set();
@@ -165,11 +185,12 @@ class DunningStore {
   }
 
   // ---------------------------------------------------------------------------
-  // Workflow Run Methods
+  // Workflow Run Methods (deprecated - use Invoice Run Mapping methods)
   // ---------------------------------------------------------------------------
 
   /**
    * Get a workflow run by run ID.
+   * @deprecated Use getRunIdForInvoice() and workflow/api's getRun() instead
    */
   getWorkflowRun(runId: string): WorkflowRun | undefined {
     return this.workflowRuns.get(runId);
@@ -178,6 +199,7 @@ class DunningStore {
   /**
    * Get workflow run by invoice ID.
    * Returns the most recent run for the invoice.
+   * @deprecated Use getRunIdForInvoice() and workflow/api's getRun() instead
    */
   getWorkflowRunByInvoice(invoiceId: string): WorkflowRun | undefined {
     const runs = Array.from(this.workflowRuns.values())
@@ -188,6 +210,7 @@ class DunningStore {
 
   /**
    * Create or update a workflow run.
+   * @deprecated Use setInvoiceRunMapping() instead
    */
   setWorkflowRun(run: WorkflowRun): void {
     this.log('setWorkflowRun', {
@@ -200,6 +223,7 @@ class DunningStore {
 
   /**
    * Update workflow run state.
+   * @deprecated Workflow state is managed by the runtime - use getRun() from workflow/api
    */
   updateWorkflowRun(
     runId: string,
@@ -211,6 +235,46 @@ class DunningStore {
     this.workflowRuns.set(runId, updated);
     this.log('updateWorkflowRun', { runId, updates });
     return updated;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Invoice Run Mapping Methods
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Get the runId for an invoice.
+   * Used by status endpoint to look up workflow status via getRun().
+   */
+  getRunIdForInvoice(invoiceId: string): string | undefined {
+    const mapping = this.invoiceRunMappings.get(invoiceId);
+    return mapping?.runId;
+  }
+
+  /**
+   * Get the full mapping for an invoice.
+   */
+  getInvoiceRunMapping(invoiceId: string): InvoiceRunMapping | undefined {
+    return this.invoiceRunMappings.get(invoiceId);
+  }
+
+  /**
+   * Check if a workflow is already registered for an invoice.
+   * Used for idempotency checks.
+   */
+  hasActiveRunForInvoice(invoiceId: string): boolean {
+    return this.invoiceRunMappings.has(invoiceId);
+  }
+
+  /**
+   * Set the mapping between an invoice and its workflow run.
+   * This is the minimal tracking needed - actual state is in the runtime.
+   */
+  setInvoiceRunMapping(mapping: InvoiceRunMapping): void {
+    this.log('setInvoiceRunMapping', {
+      invoiceId: mapping.invoiceId,
+      runId: mapping.runId,
+    });
+    this.invoiceRunMappings.set(mapping.invoiceId, mapping);
   }
 
   // ---------------------------------------------------------------------------
@@ -382,6 +446,7 @@ class DunningStore {
     return {
       invoices: new Map(this.invoices),
       workflowRuns: new Map(this.workflowRuns),
+      invoiceRunMappings: new Map(this.invoiceRunMappings),
       emailLogs: [...this.emailLogs],
       subscriptionOperations: [...this.subscriptionOperations],
       processedEventIds: new Set(this.processedEventIds),
@@ -396,6 +461,7 @@ class DunningStore {
     return {
       invoices: Object.fromEntries(this.invoices),
       workflowRuns: Object.fromEntries(this.workflowRuns),
+      invoiceRunMappings: Object.fromEntries(this.invoiceRunMappings),
       emailLogs: this.emailLogs,
       subscriptionOperations: this.subscriptionOperations,
       processedEventIds: Array.from(this.processedEventIds),
@@ -413,6 +479,7 @@ class DunningStore {
     this.log('reset', {});
     this.invoices.clear();
     this.workflowRuns.clear();
+    this.invoiceRunMappings.clear();
     this.emailLogs = [];
     this.subscriptionOperations = [];
     this.processedEventIds.clear();

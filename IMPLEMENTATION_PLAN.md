@@ -1,88 +1,69 @@
 # Implementation Plan: Workflow Pattern Fixes
 
-This document tracks issues with the current dunning workflow implementation that violate Vercel Workflow DevKit patterns. Issues are sorted by priority.
-
----
-
-## CRITICAL: Directive Placement (Compiler Requirement)
-
-All `"use workflow"` and `"use step"` directives are incorrectly placed at file level instead of inside function bodies. This prevents the compiler from transforming the functions for durable execution.
-
-Per the Workflow DevKit documentation:
-> Directives must be placed as the first statement inside the function body, not at the file level.
-
-### Issues
-
-- [x] **`lib/dunning/workflow.ts`** - `"use workflow"` ~~at file level~~, moved inside `dunningWorkflow()` function body ✓
-- [x] **`lib/dunning/steps/check-invoice-status.ts`** - `"use step"` ~~at file level~~, moved inside `checkInvoiceStatus()` function body ✓
-- [x] **`lib/dunning/steps/send-dunning-email.ts`** - `"use step"` ~~at file level~~, moved inside `sendDunningEmail()` function body ✓
-- [x] **`lib/dunning/steps/restrict-access.ts`** - `"use step"` ~~at file level~~, moved inside `restrictCustomerAccess()` function body ✓
-- [x] **`lib/dunning/steps/execute-final-action.ts`** - `"use step"` ~~at file level~~, moved inside `executeFinalAction()` function body ✓
-
----
-
-## CRITICAL: Determinism Violation (Breaks Replay)
-
-Workflow functions must be deterministic. All I/O operations must go through step functions, not be called directly in workflow context.
-
-### Issues
-
-- [x] **`lib/dunning/workflow.ts`** - ~~Direct store access in workflow~~ Removed `dunningStore.getInvoice()` and `dunningStore.createInvoice()` calls from workflow function. Invoice must exist before workflow starts (created by API route or test setup). ✓
-
----
-
-## HIGH: Incorrect Workflow Triggering
-
-API routes call the workflow function directly instead of using `start()` from `workflow/api`. This bypasses the workflow runtime, losing durability, observability, and proper Run management.
-
-### Issues
-
-- [x] **`app/api/dunning/start/route.ts`** - ~~Calls `dunningWorkflow(workflowInput)` directly~~ Now uses `start()` from `workflow/api` and gets `runId` from the returned `Run` object. ✓
-
-- [x] **`app/api/webhooks/stripe/route.ts`** - ~~Calls `dunningWorkflow(workflowInput)` directly~~ Now uses `start()` from `workflow/api` and gets `runId` from the returned `Run` object. ✓
-
-- [ ] **Manual state tracking** - Both routes manually update `dunningStore` for workflow state when the Run object already provides `status`, `returnValue`, etc. (Note: Both routes now use `run.returnValue` promise but still update local store for backward compatibility with status endpoint)
-
----
-
-## MEDIUM: Missing Step Configuration
-
-Step functions should configure `maxRetries` for critical operations and use exponential backoff.
-
-### Issues
-
-- [x] **`lib/dunning/steps/check-invoice-status.ts`** - `maxRetries = 5` configured ✓
-- [x] **`lib/dunning/steps/send-dunning-email.ts`** - `maxRetries = 3` configured ✓
-- [x] **`lib/dunning/steps/restrict-access.ts`** - `maxRetries = 3` configured ✓
-- [x] **`lib/dunning/steps/execute-final-action.ts`** - `maxRetries = 5` configured ✓
-
-### Exponential Backoff
-
-- [x] **`lib/dunning/steps/check-invoice-status.ts`** - Exponential backoff implemented for transient errors using `getStepMetadata().attempt`. Uses formula `(attempt ** 2) * 1000` capped at 60000ms. ✓
-- [x] **`lib/dunning/steps/send-dunning-email.ts`** - Exponential backoff implemented for transient errors using `getStepMetadata().attempt`. Uses formula `(attempt ** 2) * 1000` capped at 30000ms (stricter cap for email service). ✓
-
-Note: `restrict-access.ts` and `execute-final-action.ts` don't use exponential backoff because their mock providers don't define transient error types. They throw `FatalError` for unexpected errors, which is appropriate since retrying unknown errors could cause issues.
+This document tracks issues with the current dunning workflow implementation that violate Vercel Workflow DevKit patterns.
 
 ---
 
 ## Summary
 
-| Priority | Category | Count |
-|----------|----------|-------|
+All issues have been resolved. The implementation now follows Vercel Workflow DevKit patterns correctly.
+
+| Priority | Category | Status |
+|----------|----------|--------|
 | CRITICAL | Directive Placement | ✅ Complete |
 | CRITICAL | Determinism | ✅ Complete |
-| HIGH | Workflow Triggering | 1 remaining (2 done) |
+| HIGH | Workflow Triggering | ✅ Complete |
 | MEDIUM | Step Configuration (maxRetries) | ✅ Complete |
 | MEDIUM | Exponential Backoff | ✅ Complete |
-| **Total Remaining** | | **1** |
 
 ---
 
-## Recommended Fix Order
+## Completed Items
 
-1. ~~Fix directive placement in all files~~ ✅ Complete
-2. ~~Fix determinism violation in workflow.ts~~ ✅ Complete
-3. ~~Update `app/api/dunning/start/route.ts` to use `start()`~~ ✅ Complete
-4. ~~Update `app/api/webhooks/stripe/route.ts` to use `start()`~~ ✅ Complete
-5. ~~Add `maxRetries` to step functions~~ ✅ Complete
-6. ~~Add exponential backoff to step functions~~ ✅ Complete
+### CRITICAL: Directive Placement ✅
+
+`"use workflow"` and `"use step"` directives are now correctly placed inside function bodies (not at file level).
+
+- `lib/dunning/workflow.ts` - `"use workflow"` inside `dunningWorkflow()` function body
+- `lib/dunning/steps/check-invoice-status.ts` - `"use step"` inside `checkInvoiceStatus()` function body
+- `lib/dunning/steps/send-dunning-email.ts` - `"use step"` inside `sendDunningEmail()` function body
+- `lib/dunning/steps/restrict-access.ts` - `"use step"` inside `restrictCustomerAccess()` function body
+- `lib/dunning/steps/execute-final-action.ts` - `"use step"` inside `executeFinalAction()` function body
+
+### CRITICAL: Determinism ✅
+
+Workflow functions are now deterministic - no direct I/O in workflow context.
+
+- `lib/dunning/workflow.ts` - Removed direct `dunningStore` access. Invoice must exist before workflow starts.
+
+### HIGH: Workflow Triggering ✅
+
+API routes now use `start()` from `workflow/api` and leverage the Run object for status management.
+
+- `app/api/dunning/start/route.ts` - Uses `start()` from `workflow/api`
+- `app/api/webhooks/stripe/route.ts` - Uses `start()` from `workflow/api`
+- `app/api/dunning/[invoiceId]/route.ts` - Uses `getRun()` from `workflow/api` for real-time status
+
+**Architecture changes:**
+- Routes store minimal `invoiceId` → `runId` mapping via `dunningStore.setInvoiceRunMapping()`
+- Status endpoint uses `getRun()` to fetch status/returnValue from the runtime
+- Removed manual workflow state tracking (`state`, `outcome`, `finalAction`, etc.)
+- The workflow runtime is now the single source of truth for workflow state
+
+### MEDIUM: Step Configuration ✅
+
+All step functions have `maxRetries` configured:
+
+- `check-invoice-status.ts` - `maxRetries = 5`
+- `send-dunning-email.ts` - `maxRetries = 3`
+- `restrict-access.ts` - `maxRetries = 3`
+- `execute-final-action.ts` - `maxRetries = 5`
+
+### MEDIUM: Exponential Backoff ✅
+
+Exponential backoff implemented for transient errors:
+
+- `check-invoice-status.ts` - Uses `(attempt ** 2) * 1000` capped at 60000ms
+- `send-dunning-email.ts` - Uses `(attempt ** 2) * 1000` capped at 30000ms
+
+Note: `restrict-access.ts` and `execute-final-action.ts` throw `FatalError` for unexpected errors (no transient error types defined).

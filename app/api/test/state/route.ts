@@ -14,7 +14,8 @@ import { dunningStore } from '@/lib/dunning/store';
  *
  * Returns a JSON object containing:
  * - invoices: All invoice records
- * - workflowRuns: All workflow run records
+ * - invoiceRunMappings: Mapping of invoiceId -> runId (for status lookups)
+ * - workflowRuns: (deprecated) Legacy workflow run records
  * - emailLogs: All sent email records
  * - subscriptionOperations: All subscription operations (pause, cancel, restrict)
  * - processedEventIds: IDs of processed Stripe events (for idempotency)
@@ -30,6 +31,7 @@ export async function GET(): Promise<NextResponse> {
   // Add counts for summary
   const summary = {
     invoiceCount: Object.keys(state.invoices as Record<string, unknown>).length,
+    invoiceRunMappingCount: Object.keys(state.invoiceRunMappings as Record<string, unknown>).length,
     workflowRunCount: Object.keys(state.workflowRuns as Record<string, unknown>).length,
     emailLogCount: (state.emailLogs as unknown[]).length,
     subscriptionOperationCount: (state.subscriptionOperations as unknown[]).length,

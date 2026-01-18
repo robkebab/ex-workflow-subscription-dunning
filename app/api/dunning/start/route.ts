@@ -97,13 +97,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   );
 
   // Check if there's already an active workflow for this invoice
-  const existingRun = dunningStore.getWorkflowRunByInvoice(invoiceId);
-  if (existingRun && existingRun.state === 'running') {
-    console.log(`[dunning-start] Workflow already running for invoice=${invoiceId}`);
+  // Note: This only checks local mapping - in production the workflow runtime
+  // provides the actual status via getRun()
+  const existingMapping = dunningStore.getInvoiceRunMapping(invoiceId);
+  if (existingMapping) {
+    console.log(`[dunning-start] Workflow already registered for invoice=${invoiceId}`);
     return NextResponse.json(
       {
         error: 'Workflow already running for this invoice',
-        runId: existingRun.runId,
+        runId: existingMapping.runId,
       },
       { status: 409 }
     );
@@ -122,36 +124,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const run = await start(dunningWorkflow, [workflowInput]);
   const runId = run.runId;
 
-  // Create workflow run record for local tracking/status endpoint
-  dunningStore.setWorkflowRun({
-    runId,
+  // Store minimal mapping for status endpoint lookups
+  // The workflow runtime manages all state - we only need to map invoiceId -> runId
+  dunningStore.setInvoiceRunMapping({
     invoiceId,
+    runId,
     customerId,
     subscriptionId,
-    currentAttempt: 0,
-    state: 'running',
-    startedAt: Date.now(),
   });
-
-  // Monitor workflow completion asynchronously for local state tracking
-  // The Run object provides status/returnValue, but we also update our store
-  run.returnValue
-    .then((result) => {
-      console.log(`[dunning-start] Workflow completed: runId=${runId}`, result);
-      dunningStore.updateWorkflowRun(runId, {
-        state: 'completed',
-        outcome: result.outcome,
-        finalAction: result.outcome === 'exhausted' ? result.finalAction : undefined,
-        completedAt: Date.now(),
-      });
-    })
-    .catch((error) => {
-      console.error(`[dunning-start] Workflow failed: runId=${runId}`, error);
-      dunningStore.updateWorkflowRun(runId, {
-        state: 'failed',
-        completedAt: Date.now(),
-      });
-    });
 
   console.log(`[dunning-start] Workflow started: runId=${runId}`);
 

@@ -105,7 +105,7 @@ describe('POST /api/webhooks/stripe', () => {
       expect(data.invoiceId).toBe('inv_test_001');
     });
 
-    it('creates a workflow run record in the store', async () => {
+    it('creates an invoice run mapping in the store', async () => {
       const event = createPaymentFailedEvent({
         id: 'evt_unique_2',
         invoiceId: 'inv_test_002',
@@ -117,13 +117,13 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      const workflowRun = dunningStore.getWorkflowRun(data.runId);
-      expect(workflowRun).toBeDefined();
-      expect(workflowRun?.invoiceId).toBe('inv_test_002');
-      expect(workflowRun?.customerId).toBe('cus_test_002');
-      expect(workflowRun?.subscriptionId).toBe('sub_test_002');
-      // Note: Since mock workflow resolves immediately, state may be 'completed'
-      expect(['running', 'completed']).toContain(workflowRun?.state);
+      // Check that invoice -> runId mapping was created
+      const mapping = dunningStore.getInvoiceRunMapping('inv_test_002');
+      expect(mapping).toBeDefined();
+      expect(mapping?.runId).toBe(data.runId);
+      expect(mapping?.invoiceId).toBe('inv_test_002');
+      expect(mapping?.customerId).toBe('cus_test_002');
+      expect(mapping?.subscriptionId).toBe('sub_test_002');
     });
 
     it('handles events without a subscription ID', async () => {
@@ -141,9 +141,10 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200);
       expect(data.processed).toBe(true);
 
-      const workflowRun = dunningStore.getWorkflowRun(data.runId);
-      expect(workflowRun).toBeDefined();
-      expect(workflowRun?.subscriptionId).toBe('');
+      // Check that invoice -> runId mapping was created with empty subscriptionId
+      const mapping = dunningStore.getInvoiceRunMapping('inv_one_time_001');
+      expect(mapping).toBeDefined();
+      expect(mapping?.subscriptionId).toBe('');
     });
 
     it('marks event as processed in the store', async () => {
