@@ -201,58 +201,69 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Phase 5: API Endpoints
 
 ### 5.1 Implement Stripe Webhook Endpoint (`app/api/webhooks/stripe/route.ts`)
-- [ ] Handle POST requests
-- [ ] Parse `invoice.payment_failed` event from request body
-- [ ] Extract `data.object.id`, `data.object.customer`, `data.object.subscription`
-- [ ] Validate payload structure (return 400 on malformed)
-- [ ] Start dunning workflow with extracted data (asynchronously)
-- [ ] Implement idempotency: same event ID should not start duplicate workflows
-- [ ] Return 200 quickly after starting workflow
-- [ ] Log received events for observability
-- [ ] Add comment noting webhook signature verification skipped for demo
-- [ ] Add test for successful event processing
-- [ ] Add test for 400 on malformed payload
-- [ ] Add test for idempotency
-- **Status:** Not started
+- [x] Handle POST requests
+- [x] Parse `invoice.payment_failed` event from request body
+- [x] Extract `data.object.id`, `data.object.customer`, `data.object.subscription`
+- [x] Validate payload structure (return 400 on malformed)
+- [x] Start dunning workflow with extracted data (asynchronously)
+- [x] Implement idempotency: same event ID should not start duplicate workflows
+- [x] Return 200 quickly after starting workflow
+- [x] Log received events for observability
+- [x] Add comment noting webhook signature verification skipped for demo
+- [x] Add test for successful event processing (4 tests)
+- [x] Add test for 400 on malformed payload (8 tests)
+- [x] Add test for idempotency (2 tests)
+- **Status:** Complete (16 tests)
 - **Spec:** `specs/webhook-api.md`
+- **Notes:** Uses `dunningStore.hasProcessedEvent()` and `markEventProcessed()` for idempotency. Handles null subscription IDs for one-off invoices. Other event types are acknowledged but not processed.
 
 ### 5.2 Implement Dunning Start Endpoint (`app/api/dunning/start/route.ts`)
-- [ ] Handle POST requests
-- [ ] Accept `invoiceId`, `customerId`, `subscriptionId` in request body
-- [ ] Accept optional `config` overrides in request body
-- [ ] Validate required fields
-- [ ] Start dunning workflow with provided data
-- [ ] Return workflow run ID or confirmation
-- [ ] Add test for successful trigger
-- **Status:** Not started
+- [x] Handle POST requests
+- [x] Accept `invoiceId`, `customerId`, `subscriptionId` in request body
+- [x] Accept optional `config` overrides in request body
+- [x] Validate required fields
+- [x] Start dunning workflow with provided data
+- [x] Return workflow run ID or confirmation
+- [x] Add test for successful trigger (4 tests)
+- [x] Add test for conflict handling (2 tests)
+- [x] Add test for malformed request handling (11 tests)
+- **Status:** Complete (17 tests)
 - **Spec:** `specs/test-api.md`
+- **Notes:** Returns 409 Conflict if a workflow is already running for the invoice. Validates config fields (finalAction, maxAttempts, retrySchedule) when provided. Async workflow start with immediate response.
 
 ### 5.3 Implement Dunning Status Endpoint (`app/api/dunning/[invoiceId]/route.ts`)
-- [ ] Handle GET requests
-- [ ] Get current dunning status for invoice from store
-- [ ] Return attempt count, current state, timestamps
-- [ ] Return 404 if no dunning in progress for invoice
-- [ ] Add test for status retrieval
-- [ ] Add test for 404 case
-- **Status:** Not started
+- [x] Handle GET requests
+- [x] Get current dunning status for invoice from store
+- [x] Return attempt count, current state, timestamps
+- [x] Return 404 if no dunning in progress for invoice
+- [x] Add test for status retrieval (4 tests)
+- [x] Add test for 404 case (2 tests)
+- [x] Add edge case tests (3 tests)
+- **Status:** Complete (9 tests)
 - **Spec:** `specs/test-api.md`
+- **Notes:** Uses `getWorkflowRunByInvoice()` from store which returns the most recent run. Timestamps are returned in ISO format for API consumers. Returns workflow state, outcome, attempt count, and final action when applicable.
 
 ### 5.4 Implement Pay Invoice Test Endpoint (`app/api/test/pay-invoice/route.ts`)
-- [ ] Handle POST requests
-- [ ] Accept `invoiceId` in request body
-- [ ] Update mock store to mark invoice as paid
-- [ ] Return confirmation
-- [ ] Add test demonstrating recovery path
-- **Status:** Not started
+- [x] Handle POST requests
+- [x] Accept `invoiceId` in request body
+- [x] Update mock store to mark invoice as paid
+- [x] Return confirmation
+- [x] Add test demonstrating recovery path
+- [x] Add 404 handling for non-existent invoices
+- [x] Add test for already-paid invoices (idempotent)
+- [x] Add malformed request handling tests (6 tests)
+- **Status:** Complete (13 tests)
 - **Spec:** `specs/test-api.md`
+- **Notes:** Returns 404 if invoice doesn't exist. Returns success with message 'Invoice was already paid' for idempotent repeated calls. Supports all invoice statuses (open, past_due, uncollectible).
 
 ### 5.5 Implement State Dump Endpoint (`app/api/test/state/route.ts`)
-- [ ] Handle GET requests
-- [ ] Return full mock store state as JSON
-- [ ] Include all invoices, email logs, subscription states
-- [ ] Add test for state inspection
-- **Status:** Not started
+- [x] Handle GET requests
+- [x] Return full mock store state as JSON
+- [x] Include all invoices, email logs, subscription states
+- [x] Add test for state inspection (10 tests)
+- **Status:** Complete (10 tests)
 - **Spec:** `specs/test-api.md`
+- **Notes:** Returns invoices, workflowRuns, emailLogs, subscriptionOperations, processedEventIds, restrictedCustomers, pausedSubscriptions, canceledSubscriptions. Includes _summary object with counts for quick inspection.
 
 ---
 
@@ -277,9 +288,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow) - 195 tests passing
-**In Progress:** Phase 5 (API Endpoints)
-**Remaining:** Phases 5, 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5 (API Endpoints) - 260 tests passing
+**In Progress:** None
+**Remaining:** Phase 6 (Integration & End-to-End Tests, Documentation)
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
