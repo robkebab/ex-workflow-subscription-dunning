@@ -281,17 +281,18 @@ This document tracks the implementation of a production-leaning subscription dun
 ### 6.2 Documentation
 - [x] Update AGENTS.md with build & run commands
 - [x] Update AGENTS.md with validation commands
-- [ ] Ensure README has project-specific instructions
-- **Status:** In progress (AGENTS.md complete, README pending)
+- [x] Ensure README has project-specific instructions
+- **Status:** Complete
+- **Notes:** README updated with dunning workflow overview, architecture diagram, API endpoint documentation, configuration options, project structure, testing instructions, and production considerations.
 
 ---
 
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1-5, Phase 6.1 (Integration Tests) - 272 tests passing
-**In Progress:** Phase 6.2 (Documentation) - AGENTS.md updated
-**Remaining:** README project-specific instructions
+**Completed:** All phases complete - 272 tests passing
+**In Progress:** None
+**Remaining:** None - Implementation complete
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
