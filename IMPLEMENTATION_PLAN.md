@@ -218,15 +218,18 @@ This document tracks the implementation of a production-leaning subscription dun
 - **Notes:** Uses `dunningStore.hasProcessedEvent()` and `markEventProcessed()` for idempotency. Handles null subscription IDs for one-off invoices. Other event types are acknowledged but not processed.
 
 ### 5.2 Implement Dunning Start Endpoint (`app/api/dunning/start/route.ts`)
-- [ ] Handle POST requests
-- [ ] Accept `invoiceId`, `customerId`, `subscriptionId` in request body
-- [ ] Accept optional `config` overrides in request body
-- [ ] Validate required fields
-- [ ] Start dunning workflow with provided data
-- [ ] Return workflow run ID or confirmation
-- [ ] Add test for successful trigger
-- **Status:** Not started
+- [x] Handle POST requests
+- [x] Accept `invoiceId`, `customerId`, `subscriptionId` in request body
+- [x] Accept optional `config` overrides in request body
+- [x] Validate required fields
+- [x] Start dunning workflow with provided data
+- [x] Return workflow run ID or confirmation
+- [x] Add test for successful trigger (4 tests)
+- [x] Add test for conflict handling (2 tests)
+- [x] Add test for malformed request handling (11 tests)
+- **Status:** Complete (17 tests)
 - **Spec:** `specs/test-api.md`
+- **Notes:** Returns 409 Conflict if a workflow is already running for the invoice. Validates config fields (finalAction, maxAttempts, retrySchedule) when provided. Async workflow start with immediate response.
 
 ### 5.3 Implement Dunning Status Endpoint (`app/api/dunning/[invoiceId]/route.ts`)
 - [ ] Handle GET requests
@@ -278,9 +281,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5.1 (Stripe Webhook) - 211 tests passing
-**In Progress:** Phase 5 (API Endpoints) - 5.1 Complete
-**Remaining:** Phases 5.2-5.5, 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions), Phase 4 (Core Workflow), Phase 5.1-5.2 (Stripe Webhook, Dunning Start) - 228 tests passing
+**In Progress:** Phase 5 (API Endpoints) - 5.1, 5.2 Complete
+**Remaining:** Phases 5.3-5.5, 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
