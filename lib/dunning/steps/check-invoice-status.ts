@@ -5,8 +5,6 @@
  * It handles transient failures with RetryableError and permanent failures with FatalError.
  * The step is idempotent - calling it multiple times with the same invoice ID is safe.
  */
-"use step";
-
 import { FatalError, RetryableError, getStepMetadata } from 'workflow';
 import type { InvoiceState } from '../types';
 import {
@@ -25,6 +23,8 @@ import {
  * @throws RetryableError for transient failures (5xx, rate limits, network errors)
  */
 export async function checkInvoiceStatus(invoiceId: string): Promise<InvoiceState> {
+  "use step";
+
   const metadata = getStepMetadata();
   console.log(`[checkInvoiceStatus] invoiceId=${invoiceId} stepId=${metadata.stepId} attempt=${metadata.attempt}`);
 
