@@ -5,7 +5,6 @@
  * It uses the stepId as an idempotency key to ensure safe retries.
  * This is typically triggered after a configurable number of failed payment attempts.
  */
-"use step";
 
 import { FatalError, RetryableError, getStepMetadata } from 'workflow';
 import {
@@ -52,6 +51,8 @@ export interface RestrictAccessResult {
 export async function restrictCustomerAccess(
   options: RestrictAccessOptions
 ): Promise<RestrictAccessResult> {
+  "use step";
+
   const metadata = getStepMetadata();
 
   console.log(
