@@ -43,13 +43,13 @@ The workflow uses Workflow DevKit patterns:
 
 ```bash
 # Install dependencies
-npm install
+pnpm install
 
 # Start development server
-npm run dev
+pnpm run dev
 
 # Run tests
-npm test
+pnpm test
 ```
 
 ## API Endpoints
