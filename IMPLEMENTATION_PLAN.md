@@ -58,12 +58,10 @@ Step functions should configure `maxRetries` for critical operations and use exp
 
 ### Exponential Backoff
 
-- [ ] Step functions use fixed retry delays. Consider implementing exponential backoff using `getStepMetadata().attempt`:
-  ```typescript
-  const { attempt } = getStepMetadata();
-  const delay = Math.min((attempt ** 2) * 1000, 60000);
-  throw new RetryableError('...', { retryAfter: delay });
-  ```
+- [x] **`lib/dunning/steps/check-invoice-status.ts`** - Exponential backoff implemented for transient errors using `getStepMetadata().attempt`. Uses formula `(attempt ** 2) * 1000` capped at 60000ms. ✓
+- [x] **`lib/dunning/steps/send-dunning-email.ts`** - Exponential backoff implemented for transient errors using `getStepMetadata().attempt`. Uses formula `(attempt ** 2) * 1000` capped at 30000ms (stricter cap for email service). ✓
+
+Note: `restrict-access.ts` and `execute-final-action.ts` don't use exponential backoff because their mock providers don't define transient error types. They throw `FatalError` for unexpected errors, which is appropriate since retrying unknown errors could cause issues.
 
 ---
 
@@ -75,8 +73,8 @@ Step functions should configure `maxRetries` for critical operations and use exp
 | CRITICAL | Determinism | ✅ Complete |
 | HIGH | Workflow Triggering | 1 remaining (2 done) |
 | MEDIUM | Step Configuration (maxRetries) | ✅ Complete |
-| MEDIUM | Exponential Backoff | 1 |
-| **Total Remaining** | | **2** |
+| MEDIUM | Exponential Backoff | ✅ Complete |
+| **Total Remaining** | | **1** |
 
 ---
 
@@ -87,4 +85,4 @@ Step functions should configure `maxRetries` for critical operations and use exp
 3. ~~Update `app/api/dunning/start/route.ts` to use `start()`~~ ✅ Complete
 4. ~~Update `app/api/webhooks/stripe/route.ts` to use `start()`~~ ✅ Complete
 5. ~~Add `maxRetries` to step functions~~ ✅ Complete
-6. Add exponential backoff to step functions (MEDIUM - improves reliability)
+6. ~~Add exponential backoff to step functions~~ ✅ Complete
