@@ -129,3 +129,8 @@ export async function sendDunningEmail(
     throw new FatalError(`Failed to send dunning email: ${error}`);
   }
 }
+
+// Configure maximum retries for email sending.
+// Email delivery can experience transient failures, but excessive retries
+// risk sending duplicate emails if idempotency isn't working correctly.
+sendDunningEmail.maxRetries = 3;

@@ -51,19 +51,10 @@ Step functions should configure `maxRetries` for critical operations and use exp
 
 ### Issues
 
-- [ ] **`lib/dunning/steps/check-invoice-status.ts`** - Missing `maxRetries` configuration
-- [ ] **`lib/dunning/steps/send-dunning-email.ts`** - Missing `maxRetries` configuration
-- [ ] **`lib/dunning/steps/restrict-access.ts`** - Missing `maxRetries` configuration
-- [ ] **`lib/dunning/steps/execute-final-action.ts`** - Missing `maxRetries` configuration
-
-**Fix pattern**:
-```typescript
-export async function checkInvoiceStatus(invoiceId: string): Promise<InvoiceState> {
-  "use step";
-  // ... implementation
-}
-checkInvoiceStatus.maxRetries = 5;
-```
+- [x] **`lib/dunning/steps/check-invoice-status.ts`** - `maxRetries = 5` configured ✓
+- [x] **`lib/dunning/steps/send-dunning-email.ts`** - `maxRetries = 3` configured ✓
+- [x] **`lib/dunning/steps/restrict-access.ts`** - `maxRetries = 3` configured ✓
+- [x] **`lib/dunning/steps/execute-final-action.ts`** - `maxRetries = 5` configured ✓
 
 ### Exponential Backoff
 
@@ -83,8 +74,9 @@ checkInvoiceStatus.maxRetries = 5;
 | CRITICAL | Directive Placement | ✅ Complete |
 | CRITICAL | Determinism | ✅ Complete |
 | HIGH | Workflow Triggering | 1 remaining (2 done) |
-| MEDIUM | Step Configuration | 5 |
-| **Total Remaining** | | **6** |
+| MEDIUM | Step Configuration (maxRetries) | ✅ Complete |
+| MEDIUM | Exponential Backoff | 1 |
+| **Total Remaining** | | **2** |
 
 ---
 
@@ -94,4 +86,5 @@ checkInvoiceStatus.maxRetries = 5;
 2. ~~Fix determinism violation in workflow.ts~~ ✅ Complete
 3. ~~Update `app/api/dunning/start/route.ts` to use `start()`~~ ✅ Complete
 4. ~~Update `app/api/webhooks/stripe/route.ts` to use `start()`~~ ✅ Complete
-5. Add `maxRetries` and exponential backoff (MEDIUM - improves reliability)
+5. ~~Add `maxRetries` to step functions~~ ✅ Complete
+6. Add exponential backoff to step functions (MEDIUM - improves reliability)

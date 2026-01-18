@@ -62,3 +62,8 @@ export async function checkInvoiceStatus(invoiceId: string): Promise<InvoiceStat
     });
   }
 }
+
+// Configure maximum retries for this step function.
+// Status checks are critical operations that should have multiple retry attempts
+// to handle transient failures like rate limits or temporary service outages.
+checkInvoiceStatus.maxRetries = 5;

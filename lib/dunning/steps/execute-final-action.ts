@@ -143,3 +143,9 @@ export async function executeFinalAction(
     );
   }
 }
+
+// Configure maximum retries for final action execution.
+// Final actions (pause, cancel, mark_unpaid) are critical operations.
+// Using higher retry count to maximize chances of successful completion
+// since this is the last step in the dunning process.
+executeFinalAction.maxRetries = 5;
