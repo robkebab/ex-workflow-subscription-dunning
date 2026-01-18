@@ -136,17 +136,18 @@ This document tracks the implementation of a production-leaning subscription dun
 - **Notes:** Uses stepId as idempotency key. Handles both 'already_executed' (same stepId) and 'already_in_state' (customer already restricted) cases.
 
 ### 3.4 Implement executeFinalAction Step (`lib/dunning/steps/execute-final-action.ts`)
-- [ ] Use `"use step"` directive
-- [ ] Accept `finalAction` config (`'pause'` | `'cancel'` | `'mark_unpaid'`)
-- [ ] Execute configured action via subscription service
-- [ ] Use `stepId` as idempotency key
-- [ ] Must be idempotent
-- [ ] Add test for pause action
-- [ ] Add test for cancel action
-- [ ] Add test for mark_unpaid action
-- [ ] Add test for idempotency
-- **Status:** Not started
+- [x] Use `"use step"` directive
+- [x] Accept `finalAction` config (`'pause'` | `'cancel'` | `'mark_unpaid'`)
+- [x] Execute configured action via subscription service
+- [x] Use `stepId` as idempotency key
+- [x] Must be idempotent
+- [x] Add test for pause action (4 tests)
+- [x] Add test for cancel action (4 tests)
+- [x] Add test for mark_unpaid action (4 tests)
+- [x] Add test for idempotency (4 tests)
+- **Status:** Complete (16 tests)
 - **Spec:** `specs/step-functions.md`
+- **Notes:** Uses stepId as idempotency key. Handles all three actions via subscription service. Returns executed=false with reason when idempotent no-op occurs.
 
 ---
 
@@ -272,9 +273,9 @@ This document tracks the implementation of a production-leaning subscription dun
 ## Summary
 
 **Total Items:** 76 tasks across 6 phases
-**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3.1-3.3 (checkInvoiceStatus, sendDunningEmail, restrictCustomerAccess Steps) - 118 tests passing
-**In Progress:** Phase 3 (Step Functions) - 3.1-3.3 complete, 3.4 remaining
-**Remaining:** Phases 3.4, 4, 5, 6
+**Completed:** Phase 1 (Foundation), Phase 2 (Mock Infrastructure), Phase 3 (Step Functions) - 134 tests passing
+**In Progress:** Phase 4 (Core Workflow)
+**Remaining:** Phases 4, 5, 6
 
 ### Dependency Order
 1. **Phase 1** must complete before other phases (types and test framework are foundational)
