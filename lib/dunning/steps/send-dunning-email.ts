@@ -114,12 +114,14 @@ export async function sendDunningEmail(
       escalationLevel,
     };
   } catch (error) {
-    // Transient email service error - safe to retry
+    // Transient email service error - safe to retry with exponential backoff
     if (error instanceof EmailTransientError) {
-      console.log(`[sendDunningEmail] Transient error - retrying after 1000ms`);
+      // Exponential backoff: 1s, 4s, 9s... capped at 30s for email service
+      const delay = Math.min((metadata.attempt ** 2) * 1000, 30000);
+      console.log(`[sendDunningEmail] Transient error - retrying after ${delay}ms (attempt ${metadata.attempt})`);
       throw new RetryableError(
         `Email service temporarily unavailable for invoice ${options.invoiceId}`,
-        { retryAfter: 1000 }
+        { retryAfter: delay }
       );
     }
 
@@ -129,3 +131,8 @@ export async function sendDunningEmail(
     throw new FatalError(`Failed to send dunning email: ${error}`);
   }
 }
+
+// Configure maximum retries for email sending.
+// Email delivery can experience transient failures, but excessive retries
+// risk sending duplicate emails if idempotency isn't working correctly.
+sendDunningEmail.maxRetries = 3;

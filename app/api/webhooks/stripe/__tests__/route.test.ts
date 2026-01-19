@@ -3,6 +3,9 @@
  *
  * These tests verify that the webhook endpoint correctly handles Stripe events,
  * validates payloads, maintains idempotency, and starts dunning workflows.
+ *
+ * The endpoint uses `start()` from workflow/api to trigger workflows through the
+ * runtime, which provides durable execution, observability, and proper Run management.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -10,13 +13,28 @@ import { NextRequest } from 'next/server';
 import { POST } from '../route';
 import { dunningStore } from '@/lib/dunning/store';
 
-// Mock the workflow module to avoid actually running workflows during tests
-vi.mock('@/lib/dunning/workflow', () => ({
-  dunningWorkflow: vi.fn().mockResolvedValue({
-    invoiceId: 'inv_test123',
-    outcome: 'recovered',
-    attemptsUsed: 1,
+// Counter for generating unique run IDs in tests
+let mockRunIdCounter = 0;
+
+// Mock the workflow/api module to avoid actually running workflows during tests
+// The start() function returns a Run object with runId and returnValue
+vi.mock('workflow/api', () => ({
+  start: vi.fn().mockImplementation(() => {
+    const runId = `run_mock_${++mockRunIdCounter}`;
+    return Promise.resolve({
+      runId,
+      returnValue: Promise.resolve({
+        invoiceId: 'inv_test123',
+        outcome: 'recovered',
+        attemptsUsed: 1,
+      }),
+    });
   }),
+}));
+
+// Mock the workflow module (still needed for import)
+vi.mock('@/lib/dunning/workflow', () => ({
+  dunningWorkflow: vi.fn(),
 }));
 
 /**
@@ -63,6 +81,8 @@ describe('POST /api/webhooks/stripe', () => {
     // Reset store state before each test
     dunningStore.reset();
     vi.clearAllMocks();
+    // Reset mock run ID counter for consistent test isolation
+    mockRunIdCounter = 0;
   });
 
   describe('successful event processing', () => {
@@ -85,7 +105,7 @@ describe('POST /api/webhooks/stripe', () => {
       expect(data.invoiceId).toBe('inv_test_001');
     });
 
-    it('creates a workflow run record in the store', async () => {
+    it('creates an invoice run mapping in the store', async () => {
       const event = createPaymentFailedEvent({
         id: 'evt_unique_2',
         invoiceId: 'inv_test_002',
@@ -97,13 +117,13 @@ describe('POST /api/webhooks/stripe', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      const workflowRun = dunningStore.getWorkflowRun(data.runId);
-      expect(workflowRun).toBeDefined();
-      expect(workflowRun?.invoiceId).toBe('inv_test_002');
-      expect(workflowRun?.customerId).toBe('cus_test_002');
-      expect(workflowRun?.subscriptionId).toBe('sub_test_002');
-      // Note: Since mock workflow resolves immediately, state may be 'completed'
-      expect(['running', 'completed']).toContain(workflowRun?.state);
+      // Check that invoice -> runId mapping was created
+      const mapping = dunningStore.getInvoiceRunMapping('inv_test_002');
+      expect(mapping).toBeDefined();
+      expect(mapping?.runId).toBe(data.runId);
+      expect(mapping?.invoiceId).toBe('inv_test_002');
+      expect(mapping?.customerId).toBe('cus_test_002');
+      expect(mapping?.subscriptionId).toBe('sub_test_002');
     });
 
     it('handles events without a subscription ID', async () => {
@@ -121,9 +141,10 @@ describe('POST /api/webhooks/stripe', () => {
       expect(response.status).toBe(200);
       expect(data.processed).toBe(true);
 
-      const workflowRun = dunningStore.getWorkflowRun(data.runId);
-      expect(workflowRun).toBeDefined();
-      expect(workflowRun?.subscriptionId).toBe('');
+      // Check that invoice -> runId mapping was created with empty subscriptionId
+      const mapping = dunningStore.getInvoiceRunMapping('inv_one_time_001');
+      expect(mapping).toBeDefined();
+      expect(mapping?.subscriptionId).toBe('');
     });
 
     it('marks event as processed in the store', async () => {

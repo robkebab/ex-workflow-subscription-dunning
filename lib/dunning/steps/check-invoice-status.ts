@@ -47,18 +47,26 @@ export async function checkInvoiceStatus(invoiceId: string): Promise<InvoiceStat
       });
     }
 
-    // Transient server error - retry with default delay
+    // Transient server error - retry with exponential backoff
     if (error instanceof TransientError) {
-      console.log(`[checkInvoiceStatus] Transient error - retrying`);
+      // Exponential backoff: 1s, 4s, 9s, 16s, 25s... capped at 60s
+      const delay = Math.min((metadata.attempt ** 2) * 1000, 60000);
+      console.log(`[checkInvoiceStatus] Transient error - retrying after ${delay}ms (attempt ${metadata.attempt})`);
       throw new RetryableError(`Transient error while checking invoice ${invoiceId}`, {
-        retryAfter: 1000, // 1 second default retry
+        retryAfter: delay,
       });
     }
 
-    // Unknown error - treat as transient and allow retry
-    console.log(`[checkInvoiceStatus] Unknown error: ${error} - treating as retryable`);
+    // Unknown error - treat as transient and allow retry with exponential backoff
+    const delay = Math.min((metadata.attempt ** 2) * 1000, 60000);
+    console.log(`[checkInvoiceStatus] Unknown error: ${error} - treating as retryable (attempt ${metadata.attempt})`);
     throw new RetryableError(`Failed to check invoice ${invoiceId}: ${error}`, {
-      retryAfter: 1000,
+      retryAfter: delay,
     });
   }
 }
+
+// Configure maximum retries for this step function.
+// Status checks are critical operations that should have multiple retry attempts
+// to handle transient failures like rate limits or temporary service outages.
+checkInvoiceStatus.maxRetries = 5;

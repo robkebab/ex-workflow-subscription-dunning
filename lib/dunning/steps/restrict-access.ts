@@ -91,3 +91,8 @@ export async function restrictCustomerAccess(
     throw new FatalError(`Failed to restrict access for customer ${options.customerId}: ${error}`);
   }
 }
+
+// Configure maximum retries for access restriction.
+// This operation should be idempotent via stepId, so retries are safe.
+// Using moderate retry count to handle transient failures.
+restrictCustomerAccess.maxRetries = 3;

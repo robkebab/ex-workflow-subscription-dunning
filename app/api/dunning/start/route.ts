@@ -4,9 +4,13 @@
  * This endpoint enables developers to manually start a dunning workflow for testing
  * and debugging. It accepts invoice, customer, and subscription IDs along with
  * optional configuration overrides.
+ *
+ * Uses `start()` from workflow/api to properly trigger the workflow through the
+ * runtime, enabling durable execution, observability, and proper Run management.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { start } from 'workflow/api';
 import { dunningStore } from '@/lib/dunning/store';
 import { dunningWorkflow } from '@/lib/dunning/workflow';
 import type { DunningWorkflowInput, DunningConfig } from '@/lib/dunning/types';
@@ -93,13 +97,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   );
 
   // Check if there's already an active workflow for this invoice
-  const existingRun = dunningStore.getWorkflowRunByInvoice(invoiceId);
-  if (existingRun && existingRun.state === 'running') {
-    console.log(`[dunning-start] Workflow already running for invoice=${invoiceId}`);
+  // Note: This only checks local mapping - in production the workflow runtime
+  // provides the actual status via getRun()
+  const existingMapping = dunningStore.getInvoiceRunMapping(invoiceId);
+  if (existingMapping) {
+    console.log(`[dunning-start] Workflow already registered for invoice=${invoiceId}`);
     return NextResponse.json(
       {
         error: 'Workflow already running for this invoice',
-        runId: existingRun.runId,
+        runId: existingMapping.runId,
       },
       { status: 409 }
     );
@@ -114,38 +120,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     config,
   };
 
-  // Generate a run ID for tracking
-  const runId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // Start workflow via runtime - this enables durable execution and proper Run management
+  const run = await start(dunningWorkflow, [workflowInput]);
+  const runId = run.runId;
 
-  // Create workflow run record
-  dunningStore.setWorkflowRun({
-    runId,
+  // Store minimal mapping for status endpoint lookups
+  // The workflow runtime manages all state - we only need to map invoiceId -> runId
+  dunningStore.setInvoiceRunMapping({
     invoiceId,
+    runId,
     customerId,
     subscriptionId,
-    currentAttempt: 0,
-    state: 'running',
-    startedAt: Date.now(),
   });
-
-  // Start workflow asynchronously (don't await - return 200 quickly)
-  dunningWorkflow(workflowInput)
-    .then((result) => {
-      console.log(`[dunning-start] Workflow completed: runId=${runId}`, result);
-      dunningStore.updateWorkflowRun(runId, {
-        state: 'completed',
-        outcome: result.outcome,
-        finalAction: result.outcome === 'exhausted' ? result.finalAction : undefined,
-        completedAt: Date.now(),
-      });
-    })
-    .catch((error) => {
-      console.error(`[dunning-start] Workflow failed: runId=${runId}`, error);
-      dunningStore.updateWorkflowRun(runId, {
-        state: 'failed',
-        completedAt: Date.now(),
-      });
-    });
 
   console.log(`[dunning-start] Workflow started: runId=${runId}`);
 

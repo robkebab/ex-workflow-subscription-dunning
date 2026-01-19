@@ -3,6 +3,9 @@
  *
  * This endpoint allows developers to manually trigger dunning workflows for testing.
  * Tests verify request validation, workflow creation, and conflict handling.
+ *
+ * The endpoint uses `start()` from workflow/api to trigger workflows through the
+ * runtime, which provides durable execution, observability, and proper Run management.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -10,13 +13,28 @@ import { NextRequest } from 'next/server';
 import { POST } from '../route';
 import { dunningStore } from '@/lib/dunning/store';
 
-// Mock the workflow module to avoid actually running workflows during tests
-vi.mock('@/lib/dunning/workflow', () => ({
-  dunningWorkflow: vi.fn().mockResolvedValue({
-    invoiceId: 'inv_test123',
-    outcome: 'recovered',
-    attemptsUsed: 1,
+// Counter for generating unique run IDs in tests
+let mockRunIdCounter = 0;
+
+// Mock the workflow/api module to avoid actually running workflows during tests
+// The start() function returns a Run object with runId and returnValue
+vi.mock('workflow/api', () => ({
+  start: vi.fn().mockImplementation(() => {
+    const runId = `run_mock_${++mockRunIdCounter}`;
+    return Promise.resolve({
+      runId,
+      returnValue: Promise.resolve({
+        invoiceId: 'inv_test123',
+        outcome: 'recovered',
+        attemptsUsed: 1,
+      }),
+    });
   }),
+}));
+
+// Mock the workflow module (still needed for import)
+vi.mock('@/lib/dunning/workflow', () => ({
+  dunningWorkflow: vi.fn(),
 }));
 
 /**
@@ -56,6 +74,8 @@ describe('POST /api/dunning/start', () => {
     // Reset store state before each test
     dunningStore.reset();
     vi.clearAllMocks();
+    // Reset mock run ID counter for consistent test isolation
+    mockRunIdCounter = 0;
   });
 
   describe('successful workflow trigger', () => {
@@ -78,7 +98,7 @@ describe('POST /api/dunning/start', () => {
       expect(data.subscriptionId).toBe('sub_start_001');
     });
 
-    it('creates a workflow run record in the store', async () => {
+    it('creates an invoice run mapping in the store', async () => {
       const body = createValidRequest({
         invoiceId: 'inv_start_002',
         customerId: 'cus_start_002',
@@ -89,13 +109,13 @@ describe('POST /api/dunning/start', () => {
       const response = await POST(request);
       const data = await response.json();
 
-      const workflowRun = dunningStore.getWorkflowRun(data.runId);
-      expect(workflowRun).toBeDefined();
-      expect(workflowRun?.invoiceId).toBe('inv_start_002');
-      expect(workflowRun?.customerId).toBe('cus_start_002');
-      expect(workflowRun?.subscriptionId).toBe('sub_start_002');
-      // Note: Since mock workflow resolves immediately, state may be 'completed'
-      expect(['running', 'completed']).toContain(workflowRun?.state);
+      // Check that invoice -> runId mapping was created (not full workflow state)
+      const mapping = dunningStore.getInvoiceRunMapping('inv_start_002');
+      expect(mapping).toBeDefined();
+      expect(mapping?.runId).toBe(data.runId);
+      expect(mapping?.invoiceId).toBe('inv_start_002');
+      expect(mapping?.customerId).toBe('cus_start_002');
+      expect(mapping?.subscriptionId).toBe('sub_start_002');
     });
 
     it('accepts optional config overrides', async () => {
@@ -136,7 +156,7 @@ describe('POST /api/dunning/start', () => {
   });
 
   describe('conflict handling', () => {
-    it('returns 409 when workflow is already running for invoice', async () => {
+    it('returns 409 when workflow mapping exists for invoice', async () => {
       const invoiceId = 'inv_conflict_001';
 
       // First request starts the workflow
@@ -148,14 +168,7 @@ describe('POST /api/dunning/start', () => {
       expect(response1.status).toBe(200);
       expect(data1.success).toBe(true);
 
-      // Manually set state to 'running' to simulate in-progress workflow
-      // (Since mock resolves immediately, it would normally complete)
-      const run = dunningStore.getWorkflowRun(data1.runId);
-      if (run) {
-        dunningStore.setWorkflowRun({ ...run, state: 'running' });
-      }
-
-      // Second request should fail with conflict
+      // Second request should fail with conflict (mapping exists)
       const body2 = createValidRequest({ invoiceId });
       const request2 = createMockRequest(body2);
       const response2 = await POST(request2);
@@ -166,32 +179,34 @@ describe('POST /api/dunning/start', () => {
       expect(data2.runId).toBe(data1.runId);
     });
 
-    it('allows new workflow if previous completed', async () => {
-      const invoiceId = 'inv_completed_001';
+    it('returns 409 even for different invoiceId-related params when mapping exists', async () => {
+      const invoiceId = 'inv_conflict_params_001';
 
-      // First request
-      const body1 = createValidRequest({ invoiceId });
+      // First request with specific params
+      const body1 = createValidRequest({
+        invoiceId,
+        customerId: 'cus_original',
+        subscriptionId: 'sub_original',
+      });
       const request1 = createMockRequest(body1);
       const response1 = await POST(request1);
       const data1 = await response1.json();
 
       expect(response1.status).toBe(200);
-      const run1 = dunningStore.getWorkflowRun(data1.runId);
 
-      // Explicitly mark as completed
-      if (run1) {
-        dunningStore.setWorkflowRun({ ...run1, state: 'completed' });
-      }
-
-      // Second request should succeed (previous workflow completed)
-      const body2 = createValidRequest({ invoiceId });
+      // Second request with different customer/subscription (same invoice)
+      // Should still fail because the invoiceId mapping exists
+      const body2 = createValidRequest({
+        invoiceId,
+        customerId: 'cus_different',
+        subscriptionId: 'sub_different',
+      });
       const request2 = createMockRequest(body2);
       const response2 = await POST(request2);
       const data2 = await response2.json();
 
-      expect(response2.status).toBe(200);
-      expect(data2.success).toBe(true);
-      expect(data2.runId).not.toBe(data1.runId);
+      expect(response2.status).toBe(409);
+      expect(data2.runId).toBe(data1.runId);
     });
   });
 

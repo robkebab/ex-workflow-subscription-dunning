@@ -19,6 +19,80 @@ import { mockStripe } from '../providers/stripe';
 import { mockEmailService } from '../providers/email';
 import { mockSubscriptionService } from '../providers/subscription';
 
+// Counter for generating unique run IDs in integration tests
+let mockRunIdCounter = 0;
+
+// Store for tracking workflow completion in tests (since routes no longer update dunningStore with state)
+const workflowResults = new Map<string, { status: string; result?: unknown; createdAt: Date; startedAt?: Date; completedAt?: Date }>();
+
+// Mock the workflow/api module - the start() function is used to trigger workflows
+// We mock it to call the workflow directly for testing without the runtime infrastructure
+vi.mock('workflow/api', () => ({
+  start: vi.fn().mockImplementation(async (workflowFn: Function, args: unknown[]) => {
+    const runId = `run_integration_${++mockRunIdCounter}`;
+    const createdAt = new Date();
+
+    // Initialize workflow result tracking
+    workflowResults.set(runId, {
+      status: 'running',
+      createdAt,
+      startedAt: new Date(),
+    });
+
+    // Call the workflow directly and track completion
+    const returnValuePromise = workflowFn(...args)
+      .then((result: unknown) => {
+        workflowResults.set(runId, {
+          status: 'completed',
+          result,
+          createdAt,
+          startedAt: new Date(),
+          completedAt: new Date(),
+        });
+        return result;
+      })
+      .catch((error: Error) => {
+        workflowResults.set(runId, {
+          status: 'failed',
+          createdAt,
+          startedAt: new Date(),
+          completedAt: new Date(),
+        });
+        throw error;
+      });
+
+    return {
+      runId,
+      returnValue: returnValuePromise,
+      status: Promise.resolve('running'),
+      createdAt: Promise.resolve(createdAt),
+      startedAt: Promise.resolve(new Date()),
+      completedAt: Promise.resolve(undefined),
+    };
+  }),
+  getRun: vi.fn().mockImplementation((runId: string) => {
+    const tracked = workflowResults.get(runId);
+    if (!tracked) {
+      return {
+        runId,
+        status: Promise.resolve('pending'),
+        returnValue: new Promise(() => {}),
+        createdAt: Promise.resolve(new Date()),
+        startedAt: Promise.resolve(undefined),
+        completedAt: Promise.resolve(undefined),
+      };
+    }
+    return {
+      runId,
+      status: Promise.resolve(tracked.status),
+      returnValue: tracked.result ? Promise.resolve(tracked.result) : new Promise(() => {}),
+      createdAt: Promise.resolve(tracked.createdAt),
+      startedAt: Promise.resolve(tracked.startedAt),
+      completedAt: Promise.resolve(tracked.completedAt),
+    };
+  }),
+}));
+
 // Mock the workflow package to control timing in tests
 vi.mock('workflow', () => {
   return {
@@ -83,6 +157,7 @@ describe('Integration Tests', () => {
   beforeEach(() => {
     // Reset all state between tests
     dunningStore.reset();
+    workflowResults.clear();
     mockStripe.resetConfig();
     mockEmailService.resetConfig();
     mockSubscriptionService.resetConfig();
@@ -100,10 +175,17 @@ describe('Integration Tests', () => {
     mockSubscriptionService.configure({ simulateLatency: false });
 
     vi.clearAllMocks();
+    // Reset mock run ID counter for consistent test isolation
+    mockRunIdCounter = 0;
   });
 
   describe('triggering workflow via /api/dunning/start', () => {
     it('successfully triggers a dunning workflow and creates store records', async () => {
+      // Create invoice first so workflow can check its status
+      dunningStore.createInvoice('inv_integration_001', 'cus_integration_001', 'sub_integration_001', {
+        status: 'paid', // Will recover immediately
+      });
+
       const request = createPostRequest('http://localhost:3000/api/dunning/start', {
         invoiceId: 'inv_integration_001',
         customerId: 'cus_integration_001',
@@ -118,14 +200,18 @@ describe('Integration Tests', () => {
       expect(data.runId).toBeDefined();
       expect(data.invoiceId).toBe('inv_integration_001');
 
-      // Verify workflow run was created in store
-      const workflowRun = dunningStore.getWorkflowRun(data.runId);
-      expect(workflowRun).toBeDefined();
-      expect(workflowRun?.invoiceId).toBe('inv_integration_001');
-      expect(workflowRun?.customerId).toBe('cus_integration_001');
+      // Wait a small amount for async workflow to complete
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Verify invoice -> runId mapping was created in store
+      const mapping = dunningStore.getInvoiceRunMapping('inv_integration_001');
+      expect(mapping).toBeDefined();
+      expect(mapping?.runId).toBe(data.runId);
+      expect(mapping?.invoiceId).toBe('inv_integration_001');
+      expect(mapping?.customerId).toBe('cus_integration_001');
     });
 
-    it('workflow processes to completion and updates store state', async () => {
+    it('workflow processes to completion and updates workflow runtime state', async () => {
       // Create invoice as paid so workflow recovers immediately
       dunningStore.createInvoice('inv_quick_recovery', 'cus_test', 'sub_test', {
         status: 'paid',
@@ -145,10 +231,11 @@ describe('Integration Tests', () => {
       // Wait a small amount for async workflow to complete
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      // Check workflow run was updated
-      const workflowRun = dunningStore.getWorkflowRun(data.runId);
-      expect(workflowRun?.state).toBe('completed');
-      expect(workflowRun?.outcome).toBe('recovered');
+      // Check workflow result was tracked (via mocked runtime)
+      const tracked = workflowResults.get(data.runId);
+      expect(tracked?.status).toBe('completed');
+      const result = tracked?.result as { outcome: string };
+      expect(result?.outcome).toBe('recovered');
     });
 
     it('workflow with custom config uses provided settings', async () => {
@@ -173,10 +260,12 @@ describe('Integration Tests', () => {
       // Wait for async workflow
       await new Promise((resolve) => setTimeout(resolve, 50));
 
-      const workflowRun = dunningStore.getWorkflowRun(data.runId);
-      expect(workflowRun?.state).toBe('completed');
-      expect(workflowRun?.outcome).toBe('exhausted');
-      expect(workflowRun?.finalAction).toBe('cancel');
+      // Check workflow result via mocked runtime
+      const tracked = workflowResults.get(data.runId);
+      expect(tracked?.status).toBe('completed');
+      const result = tracked?.result as { outcome: string; finalAction?: string };
+      expect(result?.outcome).toBe('exhausted');
+      expect(result?.finalAction).toBe('cancel');
 
       // Verify subscription was canceled
       expect(dunningStore.isSubscriptionCanceled('sub_custom')).toBe(true);
@@ -185,35 +274,29 @@ describe('Integration Tests', () => {
     it('rejects duplicate workflow for same invoice', async () => {
       const invoiceId = 'inv_duplicate_check';
 
-      // First request
-      const request1 = createPostRequest('http://localhost:3000/api/dunning/start', {
+      // Pre-create an invoice -> runId mapping to simulate in-progress workflow
+      // This tests the conflict detection without race conditions from async workflow completion
+      const existingRunId = 'run_pre_existing';
+      dunningStore.setInvoiceRunMapping({
+        runId: existingRunId,
         invoiceId,
         customerId: 'cus_dup',
         subscriptionId: 'sub_dup',
       });
 
-      const response1 = await startDunning(request1);
-      const data1 = await response1.json();
-      expect(response1.status).toBe(200);
-
-      // Keep workflow in running state
-      const run = dunningStore.getWorkflowRun(data1.runId);
-      if (run) {
-        dunningStore.setWorkflowRun({ ...run, state: 'running' });
-      }
-
-      // Second request should fail
-      const request2 = createPostRequest('http://localhost:3000/api/dunning/start', {
+      // Second request should fail due to existing mapping
+      const request = createPostRequest('http://localhost:3000/api/dunning/start', {
         invoiceId,
         customerId: 'cus_dup',
         subscriptionId: 'sub_dup',
       });
 
-      const response2 = await startDunning(request2);
-      const data2 = await response2.json();
+      const response = await startDunning(request);
+      const data = await response.json();
 
-      expect(response2.status).toBe(409);
-      expect(data2.error).toBe('Workflow already running for this invoice');
+      expect(response.status).toBe(409);
+      expect(data.error).toBe('Workflow already running for this invoice');
+      expect(data.runId).toBe(existingRunId);
     });
   });
 
@@ -266,9 +349,11 @@ describe('Integration Tests', () => {
       // Wait for workflow to complete
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const workflowRun = dunningStore.getWorkflowRun(startData.runId);
-      expect(workflowRun?.state).toBe('completed');
-      expect(workflowRun?.outcome).toBe('recovered');
+      // Check workflow result via mocked runtime
+      const tracked = workflowResults.get(startData.runId);
+      expect(tracked?.status).toBe('completed');
+      const result = tracked?.result as { outcome: string };
+      expect(result?.outcome).toBe('recovered');
     });
   });
 
@@ -301,11 +386,15 @@ describe('Integration Tests', () => {
       // Wait for async workflow
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Verify workflow completed with recovery
-      const workflowRun = dunningStore.getWorkflowRunByInvoice('inv_webhook_001');
-      expect(workflowRun).toBeDefined();
-      expect(workflowRun?.state).toBe('completed');
-      expect(workflowRun?.outcome).toBe('recovered');
+      // Verify invoice -> runId mapping exists
+      const mapping = dunningStore.getInvoiceRunMapping('inv_webhook_001');
+      expect(mapping).toBeDefined();
+
+      // Verify workflow completed with recovery via mocked runtime
+      const tracked = workflowResults.get(mapping!.runId);
+      expect(tracked?.status).toBe('completed');
+      const result = tracked?.result as { outcome: string };
+      expect(result?.outcome).toBe('recovered');
     });
 
     it('webhook idempotency prevents duplicate workflows', async () => {
@@ -377,11 +466,12 @@ describe('Integration Tests', () => {
       // Wait for workflow completion
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Verify exhaustion
-      const workflowRun = dunningStore.getWorkflowRun(startData.runId);
-      expect(workflowRun?.state).toBe('completed');
-      expect(workflowRun?.outcome).toBe('exhausted');
-      expect(workflowRun?.finalAction).toBe('pause');
+      // Verify exhaustion via mocked runtime
+      const tracked = workflowResults.get(startData.runId);
+      expect(tracked?.status).toBe('completed');
+      const result = tracked?.result as { outcome: string; finalAction?: string };
+      expect(result?.outcome).toBe('exhausted');
+      expect(result?.finalAction).toBe('pause');
 
       // Verify side effects
       expect(dunningStore.isSubscriptionPaused('sub_exhaust')).toBe(true);
@@ -397,14 +487,11 @@ describe('Integration Tests', () => {
     it('returns full store state for debugging', async () => {
       // Set up some state
       dunningStore.createInvoice('inv_state_001', 'cus_state', 'sub_state');
-      dunningStore.setWorkflowRun({
+      dunningStore.setInvoiceRunMapping({
         runId: 'run_state_001',
         invoiceId: 'inv_state_001',
         customerId: 'cus_state',
         subscriptionId: 'sub_state',
-        currentAttempt: 1,
-        state: 'running',
-        startedAt: Date.now(),
       });
 
       const request = createGetRequest('http://localhost:3000/api/test/state');
@@ -413,25 +500,29 @@ describe('Integration Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.invoices).toBeDefined();
-      expect(data.workflowRuns).toBeDefined();
+      expect(data.invoiceRunMappings).toBeDefined();
       expect(data._summary).toBeDefined();
       expect(data._summary.invoiceCount).toBe(1);
-      expect(data._summary.workflowRunCount).toBe(1);
+      expect(data._summary.invoiceRunMappingCount).toBe(1);
     });
   });
 
   describe('status lookup via /api/dunning/[invoiceId]', () => {
     it('returns workflow status for active invoice', async () => {
-      // Create workflow run
+      // Create invoice -> runId mapping
       dunningStore.createInvoice('inv_status_001', 'cus_status', 'sub_status');
-      dunningStore.setWorkflowRun({
+      dunningStore.setInvoiceRunMapping({
         runId: 'run_status_001',
         invoiceId: 'inv_status_001',
         customerId: 'cus_status',
         subscriptionId: 'sub_status',
-        currentAttempt: 2,
-        state: 'running',
-        startedAt: Date.now() - 10000,
+      });
+
+      // Set up mock runtime state
+      workflowResults.set('run_status_001', {
+        status: 'running',
+        createdAt: new Date(),
+        startedAt: new Date(),
       });
 
       // Create mock request with params
@@ -447,8 +538,7 @@ describe('Integration Tests', () => {
 
       expect(response.status).toBe(200);
       expect(data.invoiceId).toBe('inv_status_001');
-      expect(data.state).toBe('running');
-      expect(data.currentAttempt).toBe(2);
+      expect(data.status).toBe('running');
     });
 
     it('returns 404 for unknown invoice', async () => {

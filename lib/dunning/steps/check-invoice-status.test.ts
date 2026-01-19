@@ -13,6 +13,9 @@ import { checkInvoiceStatus } from './check-invoice-status';
 import { dunningStore } from '../store';
 import { mockStripe, MockStripeProvider } from '../providers/stripe';
 
+// Track attempt number for exponential backoff tests
+let mockAttempt = 1;
+
 // Mock getStepMetadata since we're testing outside of workflow runtime
 vi.mock('workflow', async (importOriginal) => {
   const actual = await importOriginal<typeof import('workflow')>();
@@ -21,7 +24,7 @@ vi.mock('workflow', async (importOriginal) => {
     getStepMetadata: () => ({
       stepId: 'test-step-id',
       stepStartedAt: new Date(),
-      attempt: 1,
+      attempt: mockAttempt,
     }),
   };
 });
@@ -37,6 +40,8 @@ describe('checkInvoiceStatus step', () => {
       transientErrorProbability: 0,
       simulateLatency: false,
     });
+    // Reset attempt to 1 before each test
+    mockAttempt = 1;
   });
 
   describe('success path', () => {
@@ -234,6 +239,97 @@ describe('checkInvoiceStatus step', () => {
 
       const result = await checkInvoiceStatus(invoiceId);
       expect(result.nextPaymentAttempt).toBe(nextAttempt);
+    });
+  });
+
+  describe('exponential backoff', () => {
+    it('uses exponential backoff for transient errors based on attempt number', async () => {
+      const invoiceId = 'inv_backoff';
+      dunningStore.setInvoice({
+        id: invoiceId,
+        status: 'open',
+        amountDue: 5000,
+        currency: 'usd',
+        customerId: 'cus_test',
+        subscriptionId: 'sub_test',
+      });
+
+      mockStripe.configure({
+        rateLimitProbability: 0,
+        transientErrorProbability: 1,
+        simulateLatency: false,
+      });
+
+      // Test attempt 1: delay should be 1^2 * 1000 = 1000ms
+      mockAttempt = 1;
+      try {
+        await checkInvoiceStatus(invoiceId);
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(RetryableError.is(error)).toBe(true);
+        const retryableError = error as RetryableError;
+        const delayMs = retryableError.retryAfter!.getTime() - Date.now();
+        expect(delayMs).toBeGreaterThanOrEqual(900); // Allow some tolerance
+        expect(delayMs).toBeLessThanOrEqual(1100);
+      }
+
+      // Test attempt 2: delay should be 2^2 * 1000 = 4000ms
+      mockAttempt = 2;
+      try {
+        await checkInvoiceStatus(invoiceId);
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(RetryableError.is(error)).toBe(true);
+        const retryableError = error as RetryableError;
+        const delayMs = retryableError.retryAfter!.getTime() - Date.now();
+        expect(delayMs).toBeGreaterThanOrEqual(3900);
+        expect(delayMs).toBeLessThanOrEqual(4100);
+      }
+
+      // Test attempt 3: delay should be 3^2 * 1000 = 9000ms
+      mockAttempt = 3;
+      try {
+        await checkInvoiceStatus(invoiceId);
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(RetryableError.is(error)).toBe(true);
+        const retryableError = error as RetryableError;
+        const delayMs = retryableError.retryAfter!.getTime() - Date.now();
+        expect(delayMs).toBeGreaterThanOrEqual(8900);
+        expect(delayMs).toBeLessThanOrEqual(9100);
+      }
+    });
+
+    it('caps exponential backoff at 60 seconds', async () => {
+      const invoiceId = 'inv_backoff_cap';
+      dunningStore.setInvoice({
+        id: invoiceId,
+        status: 'open',
+        amountDue: 5000,
+        currency: 'usd',
+        customerId: 'cus_test',
+        subscriptionId: 'sub_test',
+      });
+
+      mockStripe.configure({
+        rateLimitProbability: 0,
+        transientErrorProbability: 1,
+        simulateLatency: false,
+      });
+
+      // Test attempt 10: 10^2 * 1000 = 100000ms, but should be capped at 60000ms
+      mockAttempt = 10;
+      try {
+        await checkInvoiceStatus(invoiceId);
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(RetryableError.is(error)).toBe(true);
+        const retryableError = error as RetryableError;
+        const delayMs = retryableError.retryAfter!.getTime() - Date.now();
+        // Should be capped at 60000ms
+        expect(delayMs).toBeGreaterThanOrEqual(59900);
+        expect(delayMs).toBeLessThanOrEqual(60100);
+      }
     });
   });
 });

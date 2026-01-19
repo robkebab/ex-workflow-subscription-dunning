@@ -14,8 +14,9 @@ import { sendDunningEmail } from './send-dunning-email';
 import { dunningStore } from '../store';
 import { mockEmailService } from '../providers/email';
 
-// Track stepId for idempotency tests
+// Track stepId for idempotency tests and attempt for exponential backoff tests
 let mockStepId = 'test-step-id';
+let mockAttempt = 1;
 
 // Mock getStepMetadata since we're testing outside of workflow runtime
 vi.mock('workflow', async (importOriginal) => {
@@ -25,7 +26,7 @@ vi.mock('workflow', async (importOriginal) => {
     getStepMetadata: () => ({
       stepId: mockStepId,
       stepStartedAt: new Date(),
-      attempt: 1,
+      attempt: mockAttempt,
     }),
   };
 });
@@ -40,8 +41,9 @@ describe('sendDunningEmail step', () => {
       transientFailureProbability: 0,
       simulateLatency: false,
     });
-    // Reset stepId to default
+    // Reset stepId to default and attempt to 1
     mockStepId = 'test-step-id-' + Math.random().toString(36).slice(2);
+    mockAttempt = 1;
   });
 
   describe('success path', () => {
@@ -280,6 +282,103 @@ describe('sendDunningEmail step', () => {
       const emails = dunningStore.getEmailLogs();
       const email = emails.find(e => e.invoiceId === 'inv_webhook_test');
       expect(email?.webhookUrl).toBe(webhookUrl);
+    });
+  });
+
+  describe('exponential backoff', () => {
+    it('uses exponential backoff for transient errors based on attempt number', async () => {
+      mockEmailService.configure({
+        transientFailureProbability: 1,
+        simulateLatency: false,
+      });
+
+      // Test attempt 1: delay should be 1^2 * 1000 = 1000ms
+      mockAttempt = 1;
+      mockStepId = 'backoff-step-1';
+      try {
+        await sendDunningEmail({
+          to: 'customer@example.com',
+          customerId: 'cus_test',
+          invoiceId: 'inv_backoff',
+          attemptNumber: 1,
+          webhookUrl: 'https://example.com/fix-payment',
+        });
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(RetryableError.is(error)).toBe(true);
+        const retryableError = error as RetryableError;
+        const delayMs = retryableError.retryAfter!.getTime() - Date.now();
+        expect(delayMs).toBeGreaterThanOrEqual(900); // Allow some tolerance
+        expect(delayMs).toBeLessThanOrEqual(1100);
+      }
+
+      // Test attempt 2: delay should be 2^2 * 1000 = 4000ms
+      mockAttempt = 2;
+      mockStepId = 'backoff-step-2';
+      try {
+        await sendDunningEmail({
+          to: 'customer@example.com',
+          customerId: 'cus_test',
+          invoiceId: 'inv_backoff',
+          attemptNumber: 1,
+          webhookUrl: 'https://example.com/fix-payment',
+        });
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(RetryableError.is(error)).toBe(true);
+        const retryableError = error as RetryableError;
+        const delayMs = retryableError.retryAfter!.getTime() - Date.now();
+        expect(delayMs).toBeGreaterThanOrEqual(3900);
+        expect(delayMs).toBeLessThanOrEqual(4100);
+      }
+
+      // Test attempt 3: delay should be 3^2 * 1000 = 9000ms
+      mockAttempt = 3;
+      mockStepId = 'backoff-step-3';
+      try {
+        await sendDunningEmail({
+          to: 'customer@example.com',
+          customerId: 'cus_test',
+          invoiceId: 'inv_backoff',
+          attemptNumber: 1,
+          webhookUrl: 'https://example.com/fix-payment',
+        });
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(RetryableError.is(error)).toBe(true);
+        const retryableError = error as RetryableError;
+        const delayMs = retryableError.retryAfter!.getTime() - Date.now();
+        expect(delayMs).toBeGreaterThanOrEqual(8900);
+        expect(delayMs).toBeLessThanOrEqual(9100);
+      }
+    });
+
+    it('caps exponential backoff at 30 seconds for email service', async () => {
+      mockEmailService.configure({
+        transientFailureProbability: 1,
+        simulateLatency: false,
+      });
+
+      // Test attempt 10: 10^2 * 1000 = 100000ms, but should be capped at 30000ms for email
+      mockAttempt = 10;
+      mockStepId = 'backoff-cap-step';
+      try {
+        await sendDunningEmail({
+          to: 'customer@example.com',
+          customerId: 'cus_test',
+          invoiceId: 'inv_backoff_cap',
+          attemptNumber: 1,
+          webhookUrl: 'https://example.com/fix-payment',
+        });
+        expect.fail('Should have thrown');
+      } catch (error) {
+        expect(RetryableError.is(error)).toBe(true);
+        const retryableError = error as RetryableError;
+        const delayMs = retryableError.retryAfter!.getTime() - Date.now();
+        // Should be capped at 30000ms for email service
+        expect(delayMs).toBeGreaterThanOrEqual(29900);
+        expect(delayMs).toBeLessThanOrEqual(30100);
+      }
     });
   });
 });

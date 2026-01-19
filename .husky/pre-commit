@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+
+# Check if "install" is in package.json dependencies or devDependencies
+if git diff --cached --name-only | grep -q "package.json"; then
+  if git diff --cached package.json | grep -E '^\+.*"install"' | grep -qv '^\+.*"pnpm install'; then
+    echo "❌ Error: 'install' package detected in package.json"
+    echo "The 'install' package should not be added as a dependency."
+    echo "Please remove it before committing."
+    exit 1
+  fi
+fi

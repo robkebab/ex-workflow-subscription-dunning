@@ -185,6 +185,21 @@ npm run test:watch
 npm run test:coverage
 ```
 
+## Development Practices
+
+### Pre-commit Hook
+
+This project includes a pre-commit hook that prevents the accidental addition of the `install` package as a dependency. The `install` package is a common mistake when developers run `npm install` or `pnpm install` without specifying a package name.
+
+The hook automatically runs on every commit and will block commits that add `install` to `package.json`. If you need to test the hook:
+
+```bash
+# Run the test script
+.husky/test-precommit.sh
+```
+
+The hook is managed by [Husky](https://typicode.github.io/husky/) and is automatically set up when you run `pnpm install` (via the `prepare` script).
+
 ## Production Considerations
 
 This implementation uses mock providers for demonstration. For production:
